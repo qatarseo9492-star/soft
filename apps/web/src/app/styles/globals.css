@@ -1,0 +1,61 @@
+/* Tailwind layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === Theme tokens (CSS variables) === */
+:root {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+
+  --card: 222.2 84% 6%;
+  --card-foreground: 210 40% 96%;
+
+  --popover: 222.2 84% 5.5%;
+  --popover-foreground: 210 40% 96%;
+
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+
+  --accent: 221.2 83.2% 53.3%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 62.8% 45.6%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 224.3 76.3% 48%;
+
+  --radius: 0.75rem; /* rounded-xl */
+}
+
+/* Base app surface — use raw CSS instead of @apply to avoid unknown classes */
+@layer base {
+  *, ::before, ::after { border-color: hsl(var(--border)); }
+  html, body { height: 100%; }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Utilities / components */
+@layer components {
+  /* glassy card used across admin */
+  .soft-card {
+    background-color: hsl(var(--card) / 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(8px);
+    border-radius: 1rem;
+  }
+}

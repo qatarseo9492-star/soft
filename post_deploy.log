@@ -1,0 +1,7 @@
+[?2004h]0;master_fggxdtvjrz@1510120: /home/1510120.cloudwaysapps.com/kpvbrsfqas/public_html/apps/web[35m[master_fggxdtvjrz][m[00m:[01;34mweb[00m$ echo -e "\n=== $(date '+%F %T') post_deploy start ==="echo -e "\n=== $(date '+%F %T') post_deploy start ==="
+[?2004l
+=== 2025-09-15 16:04:45 post_deploy start ===echo -e 
+=== 2025-09-15 16:04:45 post_deploy start ===
+[?2004h]0;master_fggxdtvjrz@1510120: /home/1510120.cloudwaysapps.com/kpvbrsfqas/public_html/apps/web[35m[master_fggxdtvjrz][m[00m:[01;34mweb[00m$ ^C[?2004l[?2004h[?2004l
+[?2004h]0;master_fggxdtvjrz@1510120: /home/1510120.cloudwaysapps.com/kpvbrsfqas/public_html/apps/web[35m[master_fggxdtvjrz][m[00m:[01;34mweb[00m$ ^C[?2004l[?2004h[?2004l
+[?2004h]0;master_fggxdtvjrz@1510120: /home/1510120.cloudwaysapps.com/kpvbrsfqas/public_html/apps/web[35m[master_fggxdtvjrz][m[00m:[01;34mweb[00m$ [?2004l[?2004l

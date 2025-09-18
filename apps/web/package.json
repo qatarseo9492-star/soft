@@ -1,0 +1,55 @@
+{
+  "name": "web",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build && next-sitemap",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "sitemap": "next-sitemap",
+    "postinstall": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:push": "prisma db push --schema prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:validate": "prisma validate --schema prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema prisma/schema.prisma",
+    "deploy": "bash scripts/deploy_web.sh"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "@radix-ui/react-slot": "^1.0.2",
+    "@tanstack/react-query": "5.51.21",
+    "@tinymce/tinymce-react": "^6.3.0",
+    "bcryptjs": "2.4.3",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "framer-motion": "11.3.29",
+    "lucide-react": "0.460.0",
+    "meilisearch": "^0.53.0",
+    "next": "^14.2.32",
+    "next-seo": "6.5.0",
+    "next-sitemap": "4.2.3",
+    "papaparse": "^5.5.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-hot-toast": "2.4.1",
+    "recharts": "^2.12.7",
+    "sonner": "^1.5.0",
+    "tailwind-merge": "^2.3.0",
+    "tailwindcss-animate": "^1.0.7",
+    "tinymce": "^8.0.2",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/react": "19.1.13",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.4.41",
+    "tailwindcss": "3.4.10",
+    "typescript": "5.5.4",
+    "prisma": "5.22.0"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}

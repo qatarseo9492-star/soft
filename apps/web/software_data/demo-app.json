@@ -1,0 +1,19 @@
+{
+  "id": "demo-app",
+  "name": "Demo App",
+  "shortDesc": "",
+  "longDesc": "",
+  "homepageUrl": "",
+  "version": "1.0.0",
+  "platforms": [],
+  "categories": [],
+  "requirements": [],
+  "faq": [],
+  "media": {
+    "screenshots": []
+  },
+  "published": true,
+  "createdAt": "2025-09-13T20:41:56.689Z",
+  "updatedAt": "2025-09-13T20:41:56.689Z",
+  "versions": []
+}

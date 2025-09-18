@@ -1,0 +1,16 @@
+:root {
+  --bg: #0b0b12;
+  --card: #12121b;
+  --muted: #9aa0b4;
+  --border: #232334;
+}
+html, body {
+  background: var(--bg);
+  background-image: theme('backgroundImage.brand-gradient');
+  color: #e6e6f0;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}

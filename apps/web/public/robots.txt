@@ -1,0 +1,15 @@
+# *
+User-agent: *
+Allow: /
+
+# *
+User-agent: *
+Disallow: /web-api
+Disallow: /admin
+Disallow: /api
+
+# Host
+Host: https://filespay.org
+
+# Sitemaps
+Sitemap: https://filespay.org/sitemap.xml

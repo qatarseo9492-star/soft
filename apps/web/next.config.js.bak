@@ -1,0 +1,17 @@
+// /home/master/applications/kpvbrsfqas/public_html/apps/web/next.config.js
+const path = require('node:path');
+
+module.exports = {
+  experimental: { typedRoutes: true },
+  output: 'standalone', // <-- only if you plan to run .next/standalone/server.js
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      '@': path.resolve(__dirname, 'src'),
+    };
+    return config;
+  },
+  // Optional hardening (safe to keep):
+  poweredByHeader: false,
+  compress: true,
+};

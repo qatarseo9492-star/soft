@@ -1,0 +1,51 @@
+/** PM2 app for Next.js (standalone server). 
+ *  If you didn't build with `output: 'standalone'`, switch `script` to 'npm' + args 'start'.
+ */
+module.exports = {
+  apps: [
+    {
+      name: 'filespay-web',
+      cwd: '/home/master/applications/kpvbrsfqas/public_html/apps/web',
+
+      // Prefer the standalone server produced by `next build` (fast + fewer deps)
+      script: '.next/standalone/server.js',
+      // If you prefer `npm start`, use:
+      // script: 'npm',
+      // args: 'start',
+
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      autorestart: true,
+      max_memory_restart: '600M',
+      merge_logs: true,
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      out_file: 'logs/out.log',
+      error_file: 'logs/err.log',
+
+      env: {
+        NODE_ENV: 'production',
+        HOSTNAME: '0.0.0.0',
+        PORT: 3010,
+
+        // Server-to-server base (SSR/internal fetches to your API service)
+        API_BASE_SERVER: 'http://127.0.0.1:3000',
+
+        // What the browser should call for your Next “web-api” routes
+        NEXT_PUBLIC_API_BASE: 'https://filespay.org/web-api',
+
+        // Canonical site URL (SEO, links)
+        NEXT_PUBLIC_SITE_URL: 'https://filespay.org',
+
+        // Must match the API's WEB_REVALIDATE_TOKEN
+        WEB_REVALIDATE_TOKEN: 'change-me-to-another-long-random-token',
+
+        // Optional toggles
+        NEXT_TELEMETRY_DISABLED: '1',
+        NEXT_PUBLIC_FORCE_ADMIN: '1',
+        NODE_OPTIONS: '--max-old-space-size=512',
+      },
+    },
+  ],
+};

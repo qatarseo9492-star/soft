@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="/home/1510120.cloudwaysapps.com/kpvbrsfqas/public_html"
+
+echo "[post_deploy] Using Node: $(node -v) NPM: $(npm -v)"
+
+# --- API ---
+cd "$APP_ROOT/apps/api"
+echo "[post_deploy] API: npm ci"
+npm ci
+echo "[post_deploy] API: prisma migrate deploy"
+npx prisma migrate deploy
+echo "[post_deploy] API: build"
+npm run build
+
+# Ensure uploads dir exists
+mkdir -p "$APP_ROOT/apps/api/uploads"
+
+# --- WEB ---
+cd "$APP_ROOT/apps/web"
+echo "[post_deploy] WEB: npm ci"
+npm ci
+echo "[post_deploy] WEB: build"
+npm run build
+
+# --- PM2 ---
+cd "$APP_ROOT"
+echo "[post_deploy] PM2 reload"
+pm2 startOrReload "$APP_ROOT/pm2.config.cjs" --update-env
+pm2 save
+
+echo "[post_deploy] Done."

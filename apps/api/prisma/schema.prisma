@@ -1,0 +1,312 @@
+// =====================================
+// Prisma setup
+// =====================================
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================
+// Enums
+// =====================================
+enum Role {
+  ADMIN
+  MODERATOR
+  UPLOADER
+  USER
+}
+
+enum BuildType {
+  X86
+  X64
+  ARM64
+  Installer
+  Portable
+  Other
+}
+
+enum MediaType {
+  ICON
+  HERO
+  GALLERY
+  SCREENSHOT
+  VIDEO
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  SPAM
+  DELETED
+}
+
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// =====================================
+// Taxonomy
+// =====================================
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  parentId  String?
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryHierarchy")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  softwares Software[]
+
+  @@index([slug])
+}
+
+model Tag {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  createdAt DateTime   @default(now())
+  softwares Software[] @relation("SoftwareTags")
+}
+
+// =====================================
+// Core content
+// =====================================
+model Vendor {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  website   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  softwares Software[]
+
+  @@index([slug])
+}
+
+model Software {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  name          String
+  isFree        Boolean   @default(true)
+  shortDesc     String?
+  longDesc      String?   @db.Text
+  categoryId    String
+  vendorId      String?
+  iconUrl       String?
+  heroUrl       String?
+  websiteUrl    String?
+
+  // Aggregates
+  ratingsAvg    Float     @default(0)
+  ratingsCount  Int       @default(0)
+
+  // UI badges
+  isLatest        Boolean  @default(false)
+  isUpdated       Boolean  @default(false)
+  isRecommended   Boolean  @default(false)
+  isNew           Boolean  @default(false)
+
+  lastUpdatedAt   DateTime @default(now())
+  publishedAt     DateTime?
+  status          String   @default("published")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category      Category  @relation(fields: [categoryId], references: [id])
+  vendor        Vendor?   @relation(fields: [vendorId], references: [id])
+
+  versions      SoftwareVersion[]
+  media         SoftwareMedia[]
+  faqs          FAQ[]
+  requirements  SystemRequirement[]
+  comments      Comment[]
+  tags          Tag[]     @relation("SoftwareTags")
+  downloads     DownloadEvent[]
+  reviews       Review[]
+
+  @@index([categoryId, lastUpdatedAt])
+  @@index([isLatest, isUpdated, isRecommended, isNew])
+}
+
+model SoftwareVersion {
+  id           String    @id @default(cuid())
+  softwareId   String
+  software     Software  @relation(fields: [softwareId], references: [id])
+  version      String
+  os           String
+  license      String    @default("Free")
+  changelog    String?   @db.Text
+  releasedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  builds         SoftwareBuild[]
+  downloadEvents DownloadEvent[]   // back-relation for DownloadEvent.version
+
+  @@unique([softwareId, version])
+  @@index([softwareId, createdAt])
+}
+
+// Individual downloadable build/variant
+model SoftwareBuild {
+  id           String          @id @default(cuid())
+  versionId    String
+  version      SoftwareVersion @relation(fields: [versionId], references: [id])
+  buildType    BuildType
+  fileSize     String?
+  checksum     String?
+  downloadUrl  String?
+  mirrorUrl1   String?
+  mirrorUrl2   String?
+  createdAt    DateTime        @default(now())
+
+  downloadEvents DownloadEvent[]  // back-relation for DownloadEvent.build
+
+  @@index([versionId, buildType])
+  @@unique([versionId, buildType])
+}
+
+// Media gallery
+model SoftwareMedia {
+  id         String     @id @default(cuid())
+  softwareId String
+  software   Software   @relation(fields: [softwareId], references: [id])
+  type       MediaType
+  url        String
+  alt        String?
+  order      Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  @@index([softwareId, type, order])
+}
+
+// =====================================
+// Engagement & content
+// =====================================
+model Comment {
+  id         String        @id @default(cuid())
+  softwareId String
+  software   Software      @relation(fields: [softwareId], references: [id])
+  userId     String?
+  user       User?         @relation(fields: [userId], references: [id])
+  name       String?
+  email      String?
+  content    String        @db.Text
+  status     CommentStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([softwareId, status, createdAt])
+}
+
+model Review {
+  id          String    @id @default(cuid())
+  softwareId  String
+  software    Software  @relation(fields: [softwareId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  rating      Int
+  title       String?
+  body        String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([softwareId, userId])
+  @@index([softwareId, rating])
+}
+
+// =====================================
+// System requirements & FAQs
+// =====================================
+model SystemRequirement {
+  id          String   @id @default(cuid())
+  softwareId  String
+  software    Software @relation(fields: [softwareId], references: [id])
+  os          String
+  minimum     Json
+  recommended Json?
+}
+
+model FAQ {
+  id         String   @id @default(cuid())
+  softwareId String
+  software   Software @relation(fields: [softwareId], references: [id])
+  question   String
+  answer     String   @db.Text
+  order      Int      @default(0)
+
+  @@index([softwareId, order])
+}
+
+// =====================================
+// Users & roles
+// =====================================
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String?
+  role          Role     @default(USER)
+  avatarUrl     String?
+  isActive      Boolean  @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  comments      Comment[]
+  reviews       Review[]
+}
+
+// =====================================
+// Pages & settings
+// =====================================
+model Page {
+  id              String     @id @default(cuid())
+  slug            String     @unique
+  title           String
+  content         String     @db.Text
+  status          PageStatus @default(DRAFT)
+  metaTitle       String?
+  metaDescription String?
+  publishedAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status, publishedAt])
+}
+
+model Setting {
+  key        String   @id
+  value      String?  @db.Text
+  json       Json?
+  updatedAt  DateTime @updatedAt
+}
+
+// =====================================
+// Analytics
+// =====================================
+model DownloadEvent {
+  id          String            @id @default(cuid())
+  softwareId  String
+  software    Software          @relation(fields: [softwareId], references: [id])
+  versionId   String?
+  version     SoftwareVersion?  @relation(fields: [versionId], references: [id])
+  buildId     String?
+  build       SoftwareBuild?    @relation(fields: [buildId], references: [id])
+  ip          String?
+  userAgent   String?
+  referer     String?
+  createdAt   DateTime          @default(now())
+
+  @@index([softwareId, createdAt])
+  @@index([versionId])
+  @@index([buildId])
+}

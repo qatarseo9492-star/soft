@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base tokens (CSS vars optional; we stick to utility classes) */
+html, body {
+  @apply bg-[#0b0d16] text-white;
+}
+
+/* Panels, cards, and sidebar/item backgrounds */
+:root {
+  --card: #0e1220;
+  --muted: #101426;
+  --border: rgba(255,255,255,.08);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+/* Keep toasts above everything */
+[data-sonner-toaster] { z-index: 9999 !important; }
+
+/* Make secondary/ghost buttons readable on dark */
+.btn-muted {
+  @apply bg-white/5 hover:bg-white/10 text-white;
+}
+
+/* Simple link underline on hover for contrast */
+a { @apply hover:underline; }

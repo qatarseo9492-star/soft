@@ -1,0 +1,4 @@
+.htaccess old code DirectoryIndex disabled
+RewriteEngine On
+RewriteBase /
+RewriteRule ^(.*)?$ http://127.0.0.1:3010/$1 [P,L]
