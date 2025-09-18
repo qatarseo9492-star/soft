@@ -8,17 +8,16 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SoftwareModule = void 0;
 const common_1 = require("@nestjs/common");
-const prisma_module_1 = require("../prisma/prisma.module");
-const software_service_1 = require("./software.service");
 const software_controller_1 = require("./software.controller");
+const software_service_1 = require("./software.service");
+const prisma_service_1 = require("../prisma.service");
 let SoftwareModule = class SoftwareModule {
 };
 exports.SoftwareModule = SoftwareModule;
 exports.SoftwareModule = SoftwareModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule],
-        providers: [software_service_1.SoftwareService],
         controllers: [software_controller_1.SoftwareController],
+        providers: [software_service_1.SoftwareService, prisma_service_1.PrismaService],
         exports: [software_service_1.SoftwareService],
     })
 ], SoftwareModule);

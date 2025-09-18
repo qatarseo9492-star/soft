@@ -1,13 +1,13 @@
 // =====================================
-// Prisma setup
+// Prisma setup (WEB)
 // =====================================
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mysql"           // ⬅️ switched from "postgresql" to "mysql"
-  url      = env("WEB_DATABASE_URL") // ⬅️ use a web-only var to avoid host overrides
+  provider = "mysql"
+  url      = env("WEB_DATABASE_URL") // web-only DSN
 }
 
 // =====================================
@@ -63,29 +63,42 @@ model Category {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  softwares Software[]
+  // Explicit M2M via pivot
+  software SoftwareCategory[]
 
   @@index([slug])
 }
 
 model Tag {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  slug      String     @unique
-  createdAt DateTime   @default(now())
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
   softwares Software[] @relation("SoftwareTags")
+}
+
+// Explicit pivot for categories
+model SoftwareCategory {
+  softwareId String
+  categoryId String
+  software   Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([softwareId, categoryId])
+  @@index([categoryId])
 }
 
 // =====================================
 // Core content
 // =====================================
 model Vendor {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  slug      String    @unique
-  website   String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  slug      String   @unique
+  website   String?  @db.VarChar(191)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   softwares Software[]
 
@@ -93,97 +106,137 @@ model Vendor {
 }
 
 model Software {
-  id            String    @id @default(cuid())
-  slug          String    @unique
-  name          String
-  isFree        Boolean   @default(true)
-  shortDesc     String?
-  longDesc      String?   @db.Text
-  categoryId    String
-  vendorId      String?
-  iconUrl       String?
-  heroUrl       String?
-  websiteUrl    String?
+  id   String @id @default(cuid())
+  slug String @unique
+  name String
+
+  // Licensing & meta
+  license  String? @db.VarChar(64)
+  homepage String? @db.VarChar(191)
+
+  // Descriptions
+  shortDesc String? @db.VarChar(191)
+  longDesc  String? @db.Text
+
+  // Platforms & tags
+  os Json? // ["Windows","macOS","Linux","Android","iOS"]
+
+  // Media
+  iconUrl String? @db.VarChar(191)
+  heroUrl String? @db.VarChar(191)
 
   // Aggregates
-  ratingsAvg    Float     @default(0)
-  ratingsCount  Int       @default(0)
+  ratingsAvg   Float @default(0)
+  ratingsCount Int   @default(0)
 
   // UI badges
-  isLatest        Boolean  @default(false)
-  isUpdated       Boolean  @default(false)
-  isRecommended   Boolean  @default(false)
-  isNew           Boolean  @default(false)
+  isLatest      Boolean @default(false)
+  isUpdated     Boolean @default(false)
+  isRecommended Boolean @default(false)
+  isNew         Boolean @default(false)
 
-  lastUpdatedAt   DateTime @default(now())
-  publishedAt     DateTime?
-  status          String   @default("published")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  // Timestamps & status
+  lastUpdatedAt DateTime  @default(now())
+  publishedAt   DateTime?
+  status        String    @default("published")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  category      Category  @relation(fields: [categoryId], references: [id])
-  vendor        Vendor?   @relation(fields: [vendorId], references: [id])
+  // Relations
+  vendorId     String?
+  vendor       Vendor?             @relation(fields: [vendorId], references: [id])
+  categories   SoftwareCategory[]
+  versions     Version[]
+  media        SoftwareMedia[]
+  faqs         FAQ[]
+  requirements SystemRequirement[]
+  comments     Comment[]
+  tags         Tag[]               @relation("SoftwareTags")
+  reviews      Review[]
 
-  versions      SoftwareVersion[]
-  media         SoftwareMedia[]
-  faqs          FAQ[]
-  requirements  SystemRequirement[]
-  comments      Comment[]
-  tags          Tag[]     @relation("SoftwareTags")
-  downloads     DownloadEvent[]
-  reviews       Review[]
+  // Logging & counters
+  logs       DownloadLog[]
+  counter    DownloadCounter?
+  counter30d DownloadCounter30d?
+  daily      DownloadCounterDaily[]
+  weekly     DownloadCounterWeekly[]
 
-  @@index([categoryId, lastUpdatedAt])
+  @@index([lastUpdatedAt])
   @@index([isLatest, isUpdated, isRecommended, isNew])
+  @@index([status, publishedAt])
 }
 
-model SoftwareVersion {
-  id           String    @id @default(cuid())
-  softwareId   String
-  software     Software  @relation(fields: [softwareId], references: [id])
-  version      String
-  os           String
-  license      String    @default("Free")
-  changelog    String?   @db.Text
-  releasedAt   DateTime?
-  createdAt    DateTime  @default(now())
+model Version {
+  id         String    @id @default(cuid())
+  softwareId String
+  software   Software  @relation(fields: [softwareId], references: [id], onDelete: Cascade)
+  version    String
+  osLabel    String?   @db.VarChar(64)
+  license    String?   @db.VarChar(64)
+  changelog  String?   @db.MediumText
+  releasedAt DateTime?
+  createdAt  DateTime  @default(now())
 
-  builds         SoftwareBuild[]
-  downloadEvents DownloadEvent[]   // back-relation for DownloadEvent.version
+  builds Build[]
+
+  // 🔧 back-relation to DownloadLog.version (fixes your error)
+  logs DownloadLog[] @relation("VersionToDownloadLog")
 
   @@unique([softwareId, version])
   @@index([softwareId, createdAt])
+  @@index([releasedAt])
 }
 
-// Individual downloadable build/variant
-model SoftwareBuild {
-  id           String          @id @default(cuid())
-  versionId    String
-  version      SoftwareVersion @relation(fields: [versionId], references: [id])
-  buildType    BuildType
-  fileSize     String?
-  checksum     String?
-  downloadUrl  String?
-  mirrorUrl1   String?
-  mirrorUrl2   String?
-  createdAt    DateTime        @default(now())
+model Build {
+  id        String  @id @default(cuid())
+  versionId String
+  version   Version @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
-  downloadEvents DownloadEvent[]  // back-relation for DownloadEvent.build
+  // Platform specifics
+  os        String?    @db.VarChar(32) // "Windows","macOS","Linux","Android","iOS"
+  arch      String?    @db.VarChar(16) // "x64","arm64"
+  buildType BuildType?
 
-  @@index([versionId, buildType])
-  @@unique([versionId, buildType])
+  // Size & integrity
+  sizeMB   Int?
+  fileSize String? @db.VarChar(32)
+  sha256   String? @db.Char(64)
+
+  // Primary URL (mirrors are separate)
+  downloadUrl String?  @db.VarChar(191)
+  createdAt   DateTime @default(now())
+
+  mirrors Mirror[]
+
+  // Back-relation to DownloadLog.build
+  logs DownloadLog[] @relation("BuildToDownloadLog")
+
+  @@index([versionId])
+  @@index([os, arch])
+  @@index([buildType])
+}
+
+model Mirror {
+  id       String @id @default(cuid())
+  buildId  String
+  build    Build  @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  title    String @db.VarChar(64) // e.g., "Primary", "GDrive", "Mega"
+  url      String @db.VarChar(191)
+  priority Int    @default(100) // lower number = preferred
+
+  @@index([buildId, priority])
 }
 
 // Media gallery
 model SoftwareMedia {
-  id         String     @id @default(cuid())
+  id         String    @id @default(cuid())
   softwareId String
-  software   Software   @relation(fields: [softwareId], references: [id])
+  software   Software  @relation(fields: [softwareId], references: [id], onDelete: Cascade)
   type       MediaType
   url        String
   alt        String?
-  order      Int        @default(0)
-  createdAt  DateTime   @default(now())
+  order      Int       @default(0)
+  createdAt  DateTime  @default(now())
 
   @@index([softwareId, type, order])
 }
@@ -194,7 +247,7 @@ model SoftwareMedia {
 model Comment {
   id         String        @id @default(cuid())
   softwareId String
-  software   Software      @relation(fields: [softwareId], references: [id])
+  software   Software      @relation(fields: [softwareId], references: [id], onDelete: Cascade)
   userId     String?
   user       User?         @relation(fields: [userId], references: [id])
   name       String?
@@ -208,16 +261,16 @@ model Comment {
 }
 
 model Review {
-  id          String    @id @default(cuid())
-  softwareId  String
-  software    Software  @relation(fields: [softwareId], references: [id])
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
-  rating      Int
-  title       String?
-  body        String?   @db.Text
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String   @id @default(cuid())
+  softwareId String
+  software   Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  rating     Int
+  title      String?
+  body       String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([softwareId, userId])
   @@index([softwareId, rating])
@@ -229,7 +282,7 @@ model Review {
 model SystemRequirement {
   id          String   @id @default(cuid())
   softwareId  String
-  software    Software @relation(fields: [softwareId], references: [id])
+  software    Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
   os          String
   minimum     Json
   recommended Json?
@@ -238,7 +291,7 @@ model SystemRequirement {
 model FAQ {
   id         String   @id @default(cuid())
   softwareId String
-  software   Software @relation(fields: [softwareId], references: [id])
+  software   Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
   question   String
   answer     String   @db.Text
   order      Int      @default(0)
@@ -250,19 +303,19 @@ model FAQ {
 // Users & roles
 // =====================================
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
-  name          String?
-  role          Role     @default(USER)
-  avatarUrl     String?
-  isActive      Boolean  @default(true)
-  lastLoginAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         Role      @default(USER)
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  comments      Comment[]
-  reviews       Review[]
+  comments Comment[]
+  reviews  Review[]
 }
 
 // =====================================
@@ -284,29 +337,74 @@ model Page {
 }
 
 model Setting {
-  key        String   @id
-  value      String?  @db.Text
-  json       Json?
-  updatedAt  DateTime @updatedAt
+  key       String   @id
+  json      Json?
+  text      String?  @db.Text
+  updatedAt DateTime @updatedAt
 }
 
 // =====================================
-// Analytics
+// Analytics & materialized counters
 // =====================================
-model DownloadEvent {
-  id          String            @id @default(cuid())
-  softwareId  String
-  software    Software          @relation(fields: [softwareId], references: [id])
-  versionId   String?
-  version     SoftwareVersion?  @relation(fields: [versionId], references: [id])
-  buildId     String?
-  build       SoftwareBuild?    @relation(fields: [buildId], references: [id])
-  ip          String?
-  userAgent   String?
-  referer     String?
-  createdAt   DateTime          @default(now())
+model DownloadLog {
+  id String @id @default(cuid())
+
+  softwareId String
+  software   Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
+
+  versionId String?
+  version   Version? @relation("VersionToDownloadLog", fields: [versionId], references: [id])
+
+  buildId String?
+  build   Build?  @relation("BuildToDownloadLog", fields: [buildId], references: [id])
+
+  ip        String?  @db.VarChar(45)
+  ua        String?  @db.VarChar(191)
+  referer   String?  @db.VarChar(191)
+  createdAt DateTime @default(now())
 
   @@index([softwareId, createdAt])
   @@index([versionId])
   @@index([buildId])
+}
+
+model DownloadCounter {
+  softwareId String   @id
+  software   Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
+  total      Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@index([total(sort: Desc)])
+}
+
+model DownloadCounter30d {
+  softwareId String   @id
+  software   Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
+  total30d   Int      @default(0)
+  computedAt DateTime @default(now())
+
+  @@index([total30d(sort: Desc)])
+}
+
+// materialized snapshots
+model DownloadCounterDaily {
+  softwareId String
+  day        DateTime
+  total      Int      @default(0)
+
+  software Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
+
+  @@id([softwareId, day])
+  @@index([day, total(sort: Desc)])
+}
+
+model DownloadCounterWeekly {
+  softwareId String
+  weekStart  DateTime
+  total      Int      @default(0)
+
+  software Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
+
+  @@id([softwareId, weekStart])
+  @@index([weekStart, total(sort: Desc)])
 }

@@ -1,31 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { Logger } from '@nestjs/common';
-import { NestExpressApplication } from '@nestjs/platform-express';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    // optional: use env LOG_LEVEL if you want
-  });
-
-  // CORS from env (comma-separated origins)
-  const origins =
-    (process.env.CORS_ORIGIN ?? '')
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
-
+  const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: origins.length ? origins : true,
-    methods: process.env.CORS_METHODS ?? 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    allowedHeaders: process.env.CORS_HEADERS ?? 'Content-Type,Authorization'
+    origin: process.env.CORS_ORIGIN?.split(',').map(s => s.trim()) ?? '*',
+    credentials: false,
   });
-
-  const port = parseInt(process.env.PORT ?? '3011', 10);
-  const host = process.env.HOST ?? '0.0.0.0';
-
-  await app.listen(port, host);
-  Logger.log(`API (Express) listening on http://${host}:${port}`);
+  app.setGlobalPrefix('v1');
+  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+  const port = process.env.PORT ? Number(process.env.PORT) : 3011;
+  await app.listen(port);
+  // eslint-disable-next-line no-console
+  console.log(`API listening on :${port}`);
 }
-
 bootstrap();

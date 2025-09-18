@@ -25,7 +25,7 @@ let AuthController = class AuthController {
         if (!email || !password) {
             throw new common_1.HttpException('Email and password are required', common_1.HttpStatus.BAD_REQUEST);
         }
-        return this.auth.login(email, password);
+        return this.auth.login({ email, password });
     }
 };
 exports.AuthController = AuthController;

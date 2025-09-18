@@ -8,33 +8,14 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
-const core_1 = require("@nestjs/core");
-const config_1 = require("@nestjs/config");
-const prisma_module_1 = require("./prisma/prisma.module");
+const events_module_1 = require("./events/events.module");
+const settings_module_1 = require("./settings/settings.module");
 const software_module_1 = require("./software/software.module");
-const uploads_module_1 = require("./uploads/uploads.module");
-const comments_module_1 = require("./comments/comments.module");
-const reviews_module_1 = require("./reviews/reviews.module");
-const auth_module_1 = require("./auth/auth.module");
-const jwt_guard_1 = require("./auth/jwt.guard");
-const roles_guard_1 = require("./auth/roles.guard");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [
-            config_1.ConfigModule.forRoot({ isGlobal: true }),
-            prisma_module_1.PrismaModule,
-            software_module_1.SoftwareModule,
-            uploads_module_1.UploadsModule,
-            comments_module_1.CommentsModule,
-            reviews_module_1.ReviewsModule,
-            auth_module_1.AuthModule,
-        ],
-        providers: [
-            { provide: core_1.APP_GUARD, useClass: jwt_guard_1.JwtAuthGuard },
-            { provide: core_1.APP_GUARD, useClass: roles_guard_1.RolesGuard },
-        ],
+        imports: [events_module_1.EventsModule, settings_module_1.SettingsModule, software_module_1.SoftwareModule],
     })
 ], AppModule);

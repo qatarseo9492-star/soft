@@ -29,7 +29,7 @@ export async function generateMetadata() {
     'site.verification.other'
   ];
   const rows = await db.setting.findMany({ where: { key: { in: keys } } });
-  const map = Object.fromEntries(rows.map(r => [r.key, r.value ?? ''])) as Record<string, string>;
+  const map = Object.fromEntries(rows.map(r => [r.key, r.text ?? ''])) as Record<string, string>;
 
   return {
     verification: {

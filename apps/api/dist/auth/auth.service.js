@@ -13,63 +13,34 @@ exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_1 = require("@nestjs/jwt");
 const prisma_service_1 = require("../prisma/prisma.service");
-let bcrypt;
-try {
-    bcrypt = require('bcryptjs');
-}
-catch {
-    bcrypt = {
-        async compare(a, b) {
-            return a === b;
-        },
-    };
-}
+const bcrypt = require("bcryptjs");
 let AuthService = class AuthService {
     constructor(prisma, jwt) {
         this.prisma = prisma;
         this.jwt = jwt;
     }
-    async validateUser(email, password) {
-        const user = await this.prisma.user.findUnique({ where: { email } });
-        if (!user || !user.isActive)
-            return null;
-        const ok = await bcrypt.compare(password, user.passwordHash);
-        if (!ok)
-            return null;
-        return user;
-    }
-    async login(email, password) {
-        const user = await this.validateUser(email, password);
-        if (!user) {
+    async login(dto) {
+        const email = dto.email.trim().toLowerCase();
+        const user = await this.prisma.user.findUnique({
+            where: { email },
+            select: { id: true, email: true, passwordHash: true, role: true, isActive: true, name: true },
+        });
+        if (!user || !user.isActive) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
-        const payload = {
-            sub: user.id,
-            email: user.email,
-            role: user.role,
-        };
-        const access_token = await this.jwt.signAsync(payload, {
-            secret: process.env.JWT_SECRET || 'dev_secret_change_me',
-            expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-        });
+        const ok = await bcrypt.compare(dto.password, user.passwordHash || '');
+        if (!ok) {
+            throw new common_1.UnauthorizedException('Invalid credentials');
+        }
+        const token = await this.jwt.signAsync({ sub: user.id, email: user.email, role: user.role });
         return {
-            access_token,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                role: user.role,
-                avatarUrl: user.avatarUrl || null,
-            },
+            access_token: token,
+            user: { id: user.id, email: user.email, name: user.name ?? 'User', role: user.role },
         };
-    }
-    async validateAndLogin(email, password) {
-        return this.login(email, password);
     }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        jwt_1.JwtService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, jwt_1.JwtService])
 ], AuthService);

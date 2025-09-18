@@ -16,43 +16,52 @@ exports.UploadsController = void 0;
 const common_1 = require("@nestjs/common");
 const platform_express_1 = require("@nestjs/platform-express");
 const multer_1 = require("multer");
-const path_1 = require("path");
-const jwt_guard_1 = require("../auth/jwt.guard");
-function filenameGenerator(_, file, cb) {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + (0, path_1.extname)(file.originalname || 'file'));
+const fs = require("fs");
+const path = require("path");
+const config_1 = require("@nestjs/config");
+function safeSlug(s) {
+    return (s || '').toLowerCase().replace(/[^a-z0-9\-]+/g, '-').replace(/^\-+|\-+$/g, '');
 }
-const storage = (0, multer_1.diskStorage)({
-    destination: './public/uploads',
-    filename: filenameGenerator,
-});
 let UploadsController = class UploadsController {
-    async image(file) {
-        return { url: `/uploads/${file.filename}` };
+    constructor(cfg) {
+        this.cfg = cfg;
     }
-    async editor(file) {
-        return { success: 1, file: { url: `/uploads/${file.filename}` } };
+    async upload(file, body) {
+        if (!file)
+            throw new common_1.BadRequestException('No image uploaded');
+        const slug = safeSlug(body.softwareSlug || 'misc');
+        const publicBase = process.env.PUBLIC_UPLOAD_BASE;
+        const url = `${publicBase}/software/${slug}/${file.filename}`;
+        return { ok: true, url };
     }
 };
 exports.UploadsController = UploadsController;
 __decorate([
-    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
     (0, common_1.Post)('image'),
-    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', { storage })),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('image', {
+        storage: (0, multer_1.diskStorage)({
+            destination: (req, _file, cb) => {
+                const base = process.env.UPLOAD_DIR;
+                const slug = safeSlug(req.body.softwareSlug || 'misc');
+                const dest = path.join(base, 'software', slug);
+                fs.mkdirSync(dest, { recursive: true });
+                cb(null, dest);
+            },
+            filename: (_req, file, cb) => {
+                const ts = Date.now();
+                const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+                cb(null, `${ts}${ext}`);
+            }
+        }),
+        limits: { fileSize: Number(process.env.MAX_IMAGE_MB || 8) * 1024 * 1024 }
+    })),
     __param(0, (0, common_1.UploadedFile)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
-], UploadsController.prototype, "image", null);
-__decorate([
-    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Post)('editor'),
-    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', { storage })),
-    __param(0, (0, common_1.UploadedFile)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], UploadsController.prototype, "editor", null);
+], UploadsController.prototype, "upload", null);
 exports.UploadsController = UploadsController = __decorate([
-    (0, common_1.Controller)('v1/uploads')
+    (0, common_1.Controller)('/v1/uploads'),
+    __metadata("design:paramtypes", [config_1.ConfigService])
 ], UploadsController);
