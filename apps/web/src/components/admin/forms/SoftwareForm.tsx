@@ -1,6 +1,8 @@
 "use client";
+
 import { useEffect, useMemo, useState } from "react";
-import { apiGet, apiJSON, apiUpload, slugify } from "@/lib/api";
+import { apiGet, apiPost, apiPut, apiUpload } from "@/lib/api";
+import { slugify } from "@/lib/slug";
 import RichEditor from "@/components/admin/Editor";
 
 type Category = { id: string; slug: string; name: string };
@@ -59,9 +61,9 @@ export default function SoftwareForm({
     systemRequirements: (initial?.systemRequirements as any) ?? [],
   }));
 
-  // load categories
+  // load categories (web-api)
   useEffect(() => {
-    apiGet<{ ok: boolean; items: Category[] }>("/admin/categories")
+    apiGet<{ ok: boolean; items: Category[] }>("/web-api/admin/categories")
       .then((d) => setCats(d.items || []))
       .catch(() => setCats([]));
   }, []);
@@ -88,21 +90,22 @@ export default function SoftwareForm({
         seoDescription: form.seoDescription || null,
         vendor: form.vendor || null,
         version: form.version || null,
-        fileSizeBytes: typeof form.fileSizeBytes === "number" ? form.fileSizeBytes : null,
+        fileSizeBytes:
+          typeof form.fileSizeBytes === "number" && Number.isFinite(form.fileSizeBytes)
+            ? form.fileSizeBytes
+            : null,
         featuredImage: form.featuredImage || null,
         faqs: form.faqs || null,
         systemRequirements: form.systemRequirements || null,
       };
 
       const res = form.id
-        ? await apiJSON<{ ok: boolean; id: string; slug: string }>(
-            `/admin/software/${form.id}`,
-            "PUT",
+        ? await apiPut<{ ok: boolean; id: string; slug: string }>(
+            `/web-api/admin/software/${form.id}`,
             payload
           )
-        : await apiJSON<{ ok: boolean; id: string; slug: string }>(
-            "/admin/software",
-            "POST",
+        : await apiPost<{ ok: boolean; id: string; slug: string }>(
+            `/web-api/admin/software`,
             payload
           );
 
@@ -117,7 +120,7 @@ export default function SoftwareForm({
   const onUpload = async (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await apiUpload<{ ok: boolean; url: string }>("/admin/upload", fd);
+    const r = await apiUpload<{ ok: boolean; url: string }>(`/web-api/admin/upload`, fd);
     setForm((f) => ({ ...f, featuredImage: r.url }));
   };
 
@@ -136,9 +139,15 @@ export default function SoftwareForm({
     setForm((f) => ({ ...f, systemRequirements: next }));
   };
   const addReq = () =>
-    setForm((f) => ({ ...f, systemRequirements: [...(f.systemRequirements || []), { os: "", min: "", rec: "" }] }));
+    setForm((f) => ({
+      ...f,
+      systemRequirements: [...(f.systemRequirements || []), { os: "", min: "", rec: "" }],
+    }));
   const delReq = (i: number) =>
-    setForm((f) => ({ ...f, systemRequirements: (f.systemRequirements || []).filter((_, idx) => idx !== i) }));
+    setForm((f) => ({
+      ...f,
+      systemRequirements: (f.systemRequirements || []).filter((_, idx) => idx !== i),
+    }));
 
   const catOptions = useMemo(() => cats.map((c) => ({ value: c.slug, label: c.name })), [cats]);
 
@@ -210,7 +219,9 @@ export default function SoftwareForm({
                 </div>
               </div>
             ))}
-            <button className="btn btn-ghost" onClick={addFAQ}>+ Add FAQ</button>
+            <button className="btn btn-ghost" onClick={addFAQ}>
+              + Add FAQ
+            </button>
           </div>
         </div>
 
@@ -244,7 +255,9 @@ export default function SoftwareForm({
                 </div>
               </div>
             ))}
-            <button className="btn btn-ghost" onClick={addReq}>+ Add Requirement</button>
+            <button className="btn btn-ghost" onClick={addReq}>
+              + Add Requirement
+            </button>
           </div>
         </div>
       </div>
@@ -255,26 +268,41 @@ export default function SoftwareForm({
           <div className="mt-4 space-y-3">
             <label className="block">
               <div className="text-xs opacity-70 mb-1">Vendor</div>
-              <input className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
-                value={form.vendor ?? ""} onChange={(e) => setForm({ ...form, vendor: e.target.value })}/>
+              <input
+                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
+                value={form.vendor ?? ""}
+                onChange={(e) => setForm({ ...form, vendor: e.target.value })}
+              />
             </label>
             <label className="block">
               <div className="text-xs opacity-70 mb-1">Version</div>
-              <input className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
-                value={form.version ?? ""} onChange={(e) => setForm({ ...form, version: e.target.value })}/>
+              <input
+                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
+                value={form.version ?? ""}
+                onChange={(e) => setForm({ ...form, version: e.target.value })}
+              />
             </label>
             <label className="block">
               <div className="text-xs opacity-70 mb-1">License</div>
-              <input className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
-                value={form.license ?? ""} onChange={(e) => setForm({ ...form, license: e.target.value })}/>
+              <input
+                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
+                value={form.license ?? ""}
+                onChange={(e) => setForm({ ...form, license: e.target.value })}
+              />
             </label>
             <label className="block">
               <div className="text-xs opacity-70 mb-1">File size (bytes)</div>
-              <input type="number" className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
+              <input
+                type="number"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
                 value={form.fileSizeBytes ?? 0}
                 onChange={(e) =>
-                  setForm({ ...form, fileSizeBytes: Number.isFinite(+e.target.value) ? +e.target.value : null })
-                }/>
+                  setForm({
+                    ...form,
+                    fileSizeBytes: Number.isFinite(+e.target.value) ? +e.target.value : null,
+                  })
+                }
+              />
             </label>
             <div>
               <div className="text-xs opacity-70 mb-1">OS</div>
@@ -282,7 +310,10 @@ export default function SoftwareForm({
                 {OS_OPTS.map((o) => {
                   const checked = form.os.includes(o);
                   return (
-                    <label key={o} className="inline-flex items-center gap-2 border border-[var(--border)] rounded-lg px-2 py-1 cursor-pointer">
+                    <label
+                      key={o}
+                      className="inline-flex items-center gap-2 border border-[var(--border)] rounded-lg px-2 py-1 cursor-pointer"
+                    >
                       <input
                         type="checkbox"
                         checked={checked}
@@ -305,7 +336,10 @@ export default function SoftwareForm({
                 {catOptions.map((c) => {
                   const checked = form.categories.includes(c.value);
                   return (
-                    <label key={c.value} className="inline-flex items-center gap-2 border border-[var(--border)] rounded-lg px-2 py-1 cursor-pointer">
+                    <label
+                      key={c.value}
+                      className="inline-flex items-center gap-2 border border-[var(--border)] rounded-lg px-2 py-1 cursor-pointer"
+                    >
                       <input
                         type="checkbox"
                         checked={checked}
@@ -326,13 +360,20 @@ export default function SoftwareForm({
             </div>
             <label className="block">
               <div className="text-xs opacity-70 mb-1">SEO Title</div>
-              <input className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
-                value={form.seoTitle ?? ""} onChange={(e) => setForm({ ...form, seoTitle: e.target.value })}/>
+              <input
+                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
+                value={form.seoTitle ?? ""}
+                onChange={(e) => setForm({ ...form, seoTitle: e.target.value })}
+              />
             </label>
             <label className="block">
               <div className="text-xs opacity-70 mb-1">SEO Description</div>
-              <textarea rows={3} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
-                value={form.seoDescription ?? ""} onChange={(e) => setForm({ ...form, seoDescription: e.target.value })}/>
+              <textarea
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-transparent"
+                value={form.seoDescription ?? ""}
+                onChange={(e) => setForm({ ...form, seoDescription: e.target.value })}
+              />
             </label>
           </div>
         </div>
@@ -341,7 +382,11 @@ export default function SoftwareForm({
           <h2 className="text-lg font-semibold">Featured Image</h2>
           <div className="mt-3 space-y-3">
             {form.featuredImage ? (
-              <img src={form.featuredImage} alt="" className="w-full rounded-xl border border-[var(--border)]" />
+              <img
+                src={form.featuredImage}
+                alt=""
+                className="w-full rounded-xl border border-[var(--border)]"
+              />
             ) : (
               <div className="text-sm opacity-70">No image yet</div>
             )}
@@ -357,7 +402,9 @@ export default function SoftwareForm({
         </div>
 
         <div className="flex gap-3">
-          <button onClick={save} disabled={saving} className="btn btn-primary">{saving ? "Saving..." : "Save"}</button>
+          <button onClick={save} disabled={saving} className="btn btn-primary">
+            {saving ? "Saving..." : "Save"}
+          </button>
         </div>
       </div>
     </div>
