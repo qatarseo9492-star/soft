@@ -9,25 +9,25 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
 
-  // Allow <Image> to load assets from your domain/CDN
   images: {
     formats: ['image/avif', 'image/webp'],
+    deviceSizes: [360, 420, 640, 768, 1024, 1280, 1536, 1920, 2560],
+    imageSizes: [16, 24, 32, 48, 64, 96, 128, 256],
     remotePatterns: [
       { protocol: 'https', hostname: 'filespay.org' },
       { protocol: 'https', hostname: 'www.filespay.org' },
-      // add/remove hosts as you use them:
       { protocol: 'https', hostname: '**.r2.cloudflarestorage.com' },
       { protocol: 'https', hostname: '**.cloudflare-ipfs.com' },
     ],
+    minimumCacheTTL: 60 * 60 * 24,
   },
 
-  // Dev/prod parity: proxy /web-api/* to Nest API
+  // ⛔️ Stop proxying /web-api/* to the API.
+  // We now serve these routes from Next.js Route Handlers.
   async rewrites() {
-    const target = process.env.API_BASE_SERVER || 'http://127.0.0.1:3011';
-    return [{ source: '/web-api/:path*', destination: `${target}/:path*` }];
+    return [];
   },
 
-  // Tiny bundles for lucide-react icons
   modularizeImports: {
     'lucide-react': { transform: 'lucide-react/dist/esm/icons/{{member}}' },
   },
@@ -40,9 +40,7 @@ const nextConfig = {
     return config;
   },
 
-  // Keep CI green if ESLint complains during prod builds
   eslint: { ignoreDuringBuilds: true },
-  // If you ever need to force-build through TS errors, uncomment:
   // typescript: { ignoreBuildErrors: true },
 };
 

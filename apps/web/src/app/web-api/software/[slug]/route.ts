@@ -1,12 +1,21 @@
-export const revalidate = 300;
+// apps/web/src/app/web-api/admin/settings/route.ts
+import db from "../../_lib/db";
+export const dynamic = "force-dynamic";
 
-export async function GET(_: Request, { params }: { params: { slug: string } }) {
-  const base = process.env.API_BASE_SERVER;
-  if (!base) return Response.json({ ok: false, error: "API_BASE_SERVER not set" }, { status: 500 });
+export async function GET() {
+  const rows = await db.setting.findMany({ orderBy: { key: "asc" } });
+  return Response.json({ ok: true, items: rows });
+}
 
-  const r = await fetch(`${base}/v1/software/${encodeURIComponent(params.slug)}`, {
-    headers: { Accept: "application/json" }, cache: "no-store"
+export async function PUT(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  // Accepts { key: string, text?: string, json?: any }
+  const { key, text, json } = body || {};
+  if (!key) return new Response(JSON.stringify({ ok: false, error: "key_required" }), { status: 400 });
+  const rec = await db.setting.upsert({
+    where: { key },
+    update: { text: text ?? undefined, json: json ?? undefined },
+    create: { key, text: text ?? null, json: json ?? undefined },
   });
-  const body = await r.json().catch(() => ({}));
-  return Response.json(body, { status: r.status });
+  return Response.json({ ok: true, item: rec });
 }

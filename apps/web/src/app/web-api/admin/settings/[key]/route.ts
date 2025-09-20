@@ -1,30 +1,48 @@
-export const revalidate = 0;
+import { NextRequest, NextResponse } from "next/server";
+import db from "@/app/web-api/_lib/db";
+import { requireAdmin } from "@/app/web-api/_lib/admin-auth";
 
-export async function GET(_: Request, { params }: { params: { key: string } }) {
-  const base = process.env.API_BASE_SERVER;
-  if (!base) return Response.json({ ok:false, error:"API_BASE_SERVER not set" }, { status: 500 });
-  const r = await fetch(`${base}/v1/admin/settings/${encodeURIComponent(params.key)}`, { cache: "no-store" });
-  const b = await r.json().catch(() => ({}));
-  return Response.json(b, { status: r.status });
-}
+export const dynamic = "force-dynamic";
 
-export async function PUT(req: Request, { params }: { params: { key: string } }) {
-  const base = process.env.API_BASE_SERVER;
-  if (!base) return Response.json({ ok:false, error:"API_BASE_SERVER not set" }, { status: 500 });
-  const body = await req.json().catch(() => ({}));
-  const r = await fetch(`${base}/v1/admin/settings/${encodeURIComponent(params.key)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+/**
+ * GET /web-api/admin/settings/<key>  -> { ok, key, text, json }
+ * PUT /web-api/admin/settings/<key>  -> body: { text?: string, json?: any }
+ */
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { key: string } }
+) {
+  const key = decodeURIComponent(params.key);
+  const row = await db.setting.findUnique({ where: { key } });
+  return NextResponse.json({
+    ok: true,
+    key,
+    text: row?.text ?? "",
+    json: row?.json ?? null,
+    updatedAt: row?.updatedAt ?? null,
   });
-  const b = await r.json().catch(() => ({}));
-  return Response.json(b, { status: r.status });
 }
 
-export async function DELETE(_: Request, { params }: { params: { key: string } }) {
-  const base = process.env.API_BASE_SERVER;
-  if (!base) return Response.json({ ok:false, error:"API_BASE_SERVER not set" }, { status: 500 });
-  const r = await fetch(`${base}/v1/admin/settings/${encodeURIComponent(params.key)}`, { method: "DELETE" });
-  const b = await r.json().catch(() => ({}));
-  return Response.json(b, { status: r.status });
+export async function PUT(req: NextRequest, { params }: { params: { key: string } }) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
+
+  const key = decodeURIComponent(params.key);
+  const body = await req.json().catch(() => ({} as any));
+  const text: string | null =
+    typeof body.text === "string" ? body.text : (body.text === null ? null : undefined as any);
+  const json =
+    body.json === undefined ? undefined : body.json; // can be any JSON / null
+
+  const data: any = {};
+  if (text !== undefined) data.text = text;
+  if (json !== undefined) data.json = json;
+
+  await db.setting.upsert({
+    where: { key },
+    update: data,
+    create: { key, ...data },
+  });
+
+  return NextResponse.json({ ok: true });
 }

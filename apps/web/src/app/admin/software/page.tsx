@@ -1,71 +1,43 @@
-export const dynamic="force-dynamic";
-export const revalidate=0;
-export const runtime="nodejs";
-// apps/web/src/app/admin/software/page.tsx
+import { apiGet } from "@/lib/api";
 
-type ApiListResponse<T> = { ok: boolean; items: T[]; total?: number };
-type SoftwareRow = {
-  id: string;
-  name: string;
-  slug: string;
-  shortDesc?: string | null;
-  updatedAt?: string;
-  publishedAt?: string | null;
-  category?: { name?: string | null } | null;
-  vendor?: { name?: string | null } | null;
-};
+export const dynamic = "force-dynamic";
 
-async function getData(): Promise<SoftwareRow[]> {
-  try {
-    const res = await fetch(process.env.NEXT_PUBLIC_SITE_URL + '/web-api/software?limit=50', { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json: ApiListResponse<SoftwareRow> = await res.json();
-    if (!json?.ok || !Array.isArray(json.items)) return [];
-    return json.items;
-  } catch {
-    return [];
-  }
-}
+type Item = { id: string; name: string; slug: string; updatedAt?: string };
 
-export default async function AdminSoftwarePage() {
-  const items = await getData();
-
+export default async function SoftwareListPage() {
+  const data = await apiGet<{ ok: boolean; items: Item[] }>("/admin/software").catch(() => ({ ok:false, items: [] as Item[] }));
+  const items = data.items || [];
   return (
-    <main className="p-6">
-      <h1 className="text-xl font-semibold mb-4">Software</h1>
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="text-left border-b">
-            <th className="py-2 pr-3">Name</th>
-            <th className="py-2 pr-3">Category</th>
-            <th className="py-2 pr-3">Vendor</th>
-            <th className="py-2 pr-3">Updated</th>
-            <th className="py-2 pr-3">Published</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((s) => (
-            <tr key={s.id} className="border-b">
-              <td className="py-2 pr-3">{s.name}</td>
-              <td className="py-2 pr-3">{s.category?.name ?? '-'}</td>
-              <td className="py-2 pr-3">{s.vendor?.name ?? '-'}</td>
-              <td className="py-2 pr-3">
-                {s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : '-'}
-              </td>
-              <td className="py-2 pr-3">
-                {s.publishedAt ? new Date(s.publishedAt).toLocaleDateString() : '-'}
-              </td>
-            </tr>
-          ))}
-          {items.length === 0 && (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Software</h1>
+        <a href="/admin/software/new" className="btn btn-primary">+ New</a>
+      </div>
+      <div className="card overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="text-left border-b border-[var(--border)]">
             <tr>
-              <td className="py-6 text-neutral-500" colSpan={5}>
-                No items yet.
-              </td>
+              <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-2 hidden sm:table-cell">Slug</th>
+              <th className="px-4 py-2">Actions</th>
             </tr>
-          )}
-        </tbody>
-      </table>
-    </main>
+          </thead>
+          <tbody>
+            {items.map((it) => (
+              <tr key={it.id} className="border-b border-[var(--border)] last:border-0">
+                <td className="px-4 py-2">{it.name}</td>
+                <td className="px-4 py-2 hidden sm:table-cell opacity-70">{it.slug}</td>
+                <td className="px-4 py-2">
+                  <a className="text-blue-400 hover:underline" href={`/admin/software/${it.id}`}>Edit</a>
+                </td>
+              </tr>
+            ))}
+            {!items.length && (
+              <tr><td className="px-4 py-6 opacity-70" colSpan={3}>No items yet.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

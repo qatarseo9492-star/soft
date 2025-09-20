@@ -1,18 +1,28 @@
-// Small proxy to the API SSE so we don't fight CORS with EventSource.
-export async function GET() {
-  const base = process.env.API_BASE_SERVER;
-  if (!base) return new Response("API_BASE_SERVER not set", { status: 500 });
+import { NextRequest, NextResponse } from "next/server";
 
-  const upstream = await fetch(`${base}/v1/events`, { headers: { Accept: "text/event-stream" } });
-  const { readable, writable } = new TransformStream();
-  // Pipe the SSE stream through
-  upstream.body?.pipeTo(writable).catch(() => {});
-  return new Response(readable, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    },
-  });
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const target = searchParams.get("url");
+  if (!target) {
+    return NextResponse.json({ ok: false, error: "Missing ?url=" }, { status: 400 });
+  }
+  try {
+    const r = await fetch(target, {
+      cache: "no-store",
+      // add headers if your origin requires them
+      headers: { "user-agent": "FilespayProxy/1.0 (+https://filespay.org)" },
+    });
+
+    const body = await r.arrayBuffer();
+    const headers = new Headers();
+    headers.set("content-type", r.headers.get("content-type") || "application/octet-stream");
+
+    return new NextResponse(body, { status: r.status, headers });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || "Fetch failed" }, { status: 502 });
+  }
 }

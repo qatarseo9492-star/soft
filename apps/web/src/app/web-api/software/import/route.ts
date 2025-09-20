@@ -1,70 +1,37 @@
-export const dynamic="force-dynamic";
-export const revalidate=0;
-export const runtime="nodejs";
-// apps/web/src/app/web-api/software/import/route.ts
+// src/app/web-api/software/import/route.ts
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-import { NextRequest, NextResponse } from 'next/server';
-import db from '../../_lib/db';
-
-function bad(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-type Incoming = {
-  slug: string;
-  name: string;
-  shortDesc?: string | null;
-  longDesc?: string | null;
-  isFree?: boolean;
-  categoryId?: string | null;
-  websiteUrl?: string | null;
-  published?: boolean;
-  publishedAt?: string | null;
-  version?: string;
-  os?: string;
-};
+import { NextRequest, NextResponse } from "next/server";
+import db from "../../_lib/db";
 
 export async function POST(req: NextRequest) {
-  const input = (await req.json().catch(() => ({}))) as Partial<Incoming>;
-  if (!input.slug || !input.name) return bad('slug and name are required');
+  const body = await req.json().catch(() => ({}));
+  const { name, slug, shortDesc, longDesc, homepage } = body || {};
+  if (!name || !slug) return NextResponse.json({ ok: false, error: "name, slug required" }, { status: 400 });
 
-  const createData: any = {
-    slug: input.slug,
-    name: input.name,
-    shortDesc: input.shortDesc ?? null,
-    longDesc: input.longDesc ?? null,
-    isFree: !!input.isFree,
-    websiteUrl: input.websiteUrl ?? null,
-  };
-  if (typeof input.categoryId === 'string' && input.categoryId) {
-    createData.categoryId = input.categoryId;
-  }
-  if (typeof input.published === 'boolean') {
-    createData.publishedAt = input.published ? new Date() : null;
-  } else if (typeof input.publishedAt === 'string') {
-    createData.publishedAt = new Date(input.publishedAt);
-  }
-
-  const created = await db.software.upsert({
-    where: { slug: input.slug },
-    create: createData,
-    update: createData,
-    select: { id: true, slug: true },
+  const created = await db.software.create({
+    data: {
+      name,
+      slug,
+      shortDesc: shortDesc ?? null,
+      longDesc: longDesc ?? null,
+      homepage: homepage ?? null,
+      publishedAt: new Date(),
+    },
+    select: { id: true, name: true, slug: true },
   });
 
-  if (input.version?.trim()) {
-    // create a first version; os required by your schema
-    await db.softwareVersion.create({
+  // optional: seed a first version if provided
+  if (body?.version) {
+    await db.version.create({
       data: {
         softwareId: created.id,
-        version: input.version.trim(),
-        os: input.os || 'unknown',
+        version: String(body.version),
+        releasedAt: body.releasedAt ? new Date(body.releasedAt) : null,
       },
     });
   }
 
-  return NextResponse.json(
-    { ok: true, softwareId: created.id, slug: created.slug },
-    { status: 201, headers: { 'cache-control': 'no-store' } }
-  );
+  return NextResponse.json({ ok: true, software: created }, { status: 201 });
 }

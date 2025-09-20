@@ -1,6 +1,7 @@
-// Next.js on port 3000 (uses __dirname so no hard-coded paths)
+// apps/web/ecosystem.config.js
 const path = require("path");
 
+// Keep logs outside of .next for easier rotation/backups
 const LOG_DIR = path.join(__dirname, "..", "..", "logs");
 
 module.exports = {
@@ -8,11 +9,11 @@ module.exports = {
     {
       name: "filespay-web",
       cwd: __dirname,
-      // Call Next directly to avoid npm passing odd flags through
+      // Call Next directly (avoids npm/yarn wrapper quirks)
       script: "node_modules/next/dist/bin/next",
-      args: "start -p 3000 -H 0.0.0.0", // explicit host + port
-      instances: 1,
-      exec_mode: "fork",
+      args: "start -p 3000 -H 0.0.0.0",
+      instances: 1,             // use "max" for cluster if you want multi-core
+      exec_mode: "fork",        // "cluster" if you use instances > 1
       watch: false,
       autorestart: true,
       max_memory_restart: "600M",
@@ -22,10 +23,22 @@ module.exports = {
       error_file: path.join(LOG_DIR, "web-err.log"),
       env: {
         NODE_ENV: "production",
-        HOSTNAME: "0.0.0.0",
         PORT: 3000,
-        // Fallback; real value is also in .env.production
+        TZ: "Asia/Karachi",
+        NEXT_TELEMETRY_DISABLED: "1",
+
+        // IMPORTANT: keep this empty so browser hits this app’s /web-api/* (no double prefixes)
+        NEXT_PUBLIC_API_BASE: "",
+
+        // Safe public default (overridden by .env.production if present)
         NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || "https://filespay.org",
+
+        // If you prefer env-only (instead of .env.production), uncomment and set here:
+        // ADMIN_USER: "admin",
+        // ADMIN_PASS: "change-me",
+        // ADMIN_JWT_SECRET: "very-long-random-string-change-me-now",
+        // DATABASE_URL: "mysql://user:pass@127.0.0.1:3306/db",
+        // WEB_REVALIDATE_TOKEN: "your-token",
       },
     },
   ],

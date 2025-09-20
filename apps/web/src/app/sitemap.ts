@@ -1,33 +1,32 @@
-// apps/web/src/app/sitemap.ts
-export const revalidate = 3600;
+import db from "@/app/web-api/_lib/db";
+import type { MetadataRoute } from "next";
 
-type Software = { slug: string; lastUpdatedAt?: string };
-
-export default async function sitemap() {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "https://filespay.org";
-  const now = new Date().toISOString();
+  const items: MetadataRoute.Sitemap = [
+    { url: `${base}/`, changeFrequency: "daily", priority: 1.0, lastModified: new Date() },
+    { url: `${base}/categories`, changeFrequency: "weekly", priority: 0.7, lastModified: new Date() },
+  ];
 
-  // Only hit the API at build/export if we have a concrete server URL.
-  const api = process.env.API_BASE_SERVER ?? "";
-
-  let items: Software[] = [];
-  if (api) {
-    try {
-      const res = await fetch(`${api}/v1/software?limit=1000`, { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        items = Array.isArray((data as any).items) ? (data as any).items : [];
-      }
-    } catch {
-      // Ignore network errors — keep sitemap minimal so build doesn't fail.
-    }
+  const cats = await db.category.findMany({ select: { slug: true, updatedAt: true } });
+  for (const c of cats) {
+    items.push({
+      url: `${base}/category/${encodeURIComponent(c.slug)}`,
+      changeFrequency: "weekly",
+      priority: 0.7,
+      lastModified: c.updatedAt ?? new Date(),
+    });
   }
 
-  return [
-    { url: `${base}/`, lastModified: now },
-    ...items.map((s) => ({
+  const sw = await db.software.findMany({ select: { slug: true, updatedAt: true, publishedAt: true }, where: { status: "published" } });
+  for (const s of sw) {
+    items.push({
       url: `${base}/software/${encodeURIComponent(s.slug)}`,
-      lastModified: s.lastUpdatedAt ?? now,
-    })),
-  ];
+      changeFrequency: "daily",
+      priority: 0.9,
+      lastModified: s.updatedAt ?? s.publishedAt ?? new Date(),
+    });
+  }
+
+  return items;
 }

@@ -1,88 +1,162 @@
-export const dynamic="force-dynamic";
-export const revalidate=0;
-export const runtime="nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import db from "../../_lib/db";
+import db from "@/lib/db";
+import { slugify } from "@/lib/slug";
 
-function bad(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/* ------------------------------ helpers ------------------------------ */
+function toStrNullable(v: any): string | null {
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  return s.length ? s : null;
+}
+function toStringArray(v: any): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => String(x)).filter(Boolean);
+}
+function toNumberNullable(v: any): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function safeJSONStringify(v: any): string | null {
+  if (v === undefined || v === null) return null;
+  try {
+    if (typeof v === "string") {
+      const t = v.trim();
+      if (!t) return null;
+      try {
+        JSON.parse(t);
+        return t; // already JSON text
+      } catch {
+        return JSON.stringify(t);
+      }
+    }
+    return JSON.stringify(v);
+  } catch {
+    return null;
+  }
 }
 
-/**
- * GET /web-api/admin/software
- * Lists software for the admin grid.
- */
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const take = Math.min(Number(searchParams.get("take") || 20), 100);
-  const skip = Math.max(Number(searchParams.get("skip") || 0), 0);
+function parseBody(body: any) {
+  const name = String(body?.name || "").trim();
+  if (!name) throw new Error("Name is required");
+  const slug = String(body?.slug || slugify(name));
 
-  const items = await db.software.findMany({
-    where: undefined,
-    take,
-    skip,
-    orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      category: true,
-      shortDesc: true,
-      // ⬇️ use publishedAt, not `published`
-      publishedAt: true,
-      updatedAt: true,
-      _count: { select: { versions: true } },
-    },
-  });
+  const shortDesc = body?.shortDesc === null ? null : toStrNullable(body?.shortDesc ?? "");
+  const longDesc = body?.longDesc === null ? null : toStrNullable(body?.longDesc ?? "");
+  const license = toStrNullable(body?.license);
+  const os = toStringArray(body?.os);
+  const categories = toStringArray(body?.categories);
 
-  // expose a boolean `published` for the UI, derived from publishedAt
-  const mapped = items.map((s) => ({
-    ...s,
-    published: !!s.publishedAt,
-  }));
+  const seoTitle = toStrNullable(body?.seoTitle);
+  const seoDescription = toStrNullable(body?.seoDescription);
+  const vendor = toStrNullable(body?.vendor);
+  const version = toStrNullable(body?.version);
 
-  return NextResponse.json({ ok: true, items: mapped, total: mapped.length });
-}
-
-/**
- * POST /web-api/admin/software
- * Creates a new software item
- */
-export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
-  const {
-    name,
-    slug,
-    categoryId,
-    vendorId,
-    shortDesc,
-    longDesc,
-    iconUrl,
-    heroUrl,
-    websiteUrl,
-    isFree,
-    published, // boolean from UI
-  } = body || {};
-
-  if (!name || !slug || !categoryId) {
-    return bad("name, slug, and categoryId are required");
+  let fileSizeBytes = toNumberNullable(body?.fileSizeBytes);
+  const fileSizeMB = toNumberNullable(body?.fileSizeMB);
+  if (fileSizeBytes == null && fileSizeMB != null) {
+    fileSizeBytes = Math.round(fileSizeMB * 1024 * 1024);
   }
 
-  const data: any = {
-    name: String(name),
-    slug: String(slug),
-    categoryId: String(categoryId),
-    vendorId: vendorId ? String(vendorId) : null,
-    shortDesc: shortDesc ?? null,
-    longDesc: longDesc ?? null,
-    iconUrl: iconUrl ?? null,
-    heroUrl: heroUrl ?? null,
-    websiteUrl: websiteUrl ?? null,
-    isFree: typeof isFree === "boolean" ? isFree : true,
-    // ⬇️ map boolean to timestamp column
-    publishedAt: typeof published === "boolean" ? (published ? new Date() : null) : null,
-  };
+  const featuredImage = toStrNullable(body?.featuredImage);
+  const faqs = safeJSONStringify(body?.faqs);
+  const systemRequirements = safeJSONStringify(body?.systemRequirements);
 
-  const created = await db.software.create({ data });
-  return NextResponse.json({ ok: true, item: { ...created, published: !!created.publishedAt } }, { status: 201 });
+  return {
+    name,
+    slug,
+    shortDesc,
+    longDesc,
+    license,
+    os,
+    categories,
+    seoTitle,
+    seoDescription,
+    vendor,
+    version,
+    fileSizeBytes,
+    featuredImage,
+    faqs,
+    systemRequirements,
+  };
+}
+
+/* ------------------------------ GET (list) ------------------------------ */
+export async function GET() {
+  try {
+    // quick DB ping to surface connection problems in the response body
+    await db.$queryRaw`SELECT 1`;
+
+    const items = await db.software.findMany({
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        os: true,
+        license: true,
+        updatedAt: true,
+        featuredImage: true,
+        version: true,
+        // NOTE: if you later need categories here, use the pivot safely:
+        // categories: { select: { category: { select: { id: true, name: true, slug: true } } } },
+      },
+      take: 200,
+    });
+
+    return NextResponse.json({ ok: true, items });
+  } catch (e: any) {
+    console.error("ADMIN LIST ERROR:", e); // will show in pm2 logs
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Internal error in admin list" },
+      { status: 500 },
+    );
+  }
+}
+
+/* ------------------------------ POST (create) ------------------------------ */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const d = parseBody(body);
+
+    const created = await db.software.create({
+      data: {
+        name: d.name,
+        slug: d.slug,
+        shortDesc: d.shortDesc,
+        longDesc: d.longDesc,
+        license: d.license,
+        os: d.os,
+        seoTitle: d.seoTitle,
+        seoDescription: d.seoDescription,
+        vendor: d.vendor,
+        version: d.version,
+        fileSizeBytes: d.fileSizeBytes,
+        featuredImage: d.featuredImage,
+        faqs: d.faqs, // LONGTEXT JSON string
+        systemRequirements: d.systemRequirements, // LONGTEXT JSON string
+        ...(d.categories.length
+          ? {
+              // pivot table: SoftwareCategory -> connect Category by slug
+              categories: {
+                create: d.categories.map((slug) => ({ category: { connect: { slug } } })),
+              },
+            }
+          : {}),
+      },
+      select: { id: true, slug: true },
+    });
+
+    return NextResponse.json({ ok: true, id: created.id, slug: created.slug });
+  } catch (e: any) {
+    console.error("ADMIN CREATE ERROR:", e);
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Create failed" },
+      { status: 400 },
+    );
+  }
 }

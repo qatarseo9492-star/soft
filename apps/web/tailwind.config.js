@@ -1,34 +1,26 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: 'class',
-  content: [
-    './src/**/*.{ts,tsx,js,jsx}',
-  ],
+  content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        // Indigo/blue “mykd” vibe with neon accents
         brand: {
-          50:  '#f3f4ff',
-          100: '#e8eaff',
-          200: '#c8ccff',
-          300: '#a8adff',
-          400: '#7b82ff',
-          500: '#5c62ff',
-          600: '#4b4fe0',
-          700: '#3b3db3',
-          800: '#2d2f87',
-          900: '#232469',
-          950: '#151646',
+          50:  "#f0f7ff",
+          100: "#e0efff",
+          200: "#bdddff",
+          300: "#8ec5ff",
+          400: "#5ea8ff",
+          500: "#2b86ff",
+          600: "#1569e6",
+          700: "#0f52b3",
+          800: "#0c3c80",
+          900: "#092a59",
         },
-        danger:  '#ef4444',
-        success: '#22c55e',
-        border:  'hsl(240 7% 20%)',
       },
       boxShadow: {
-        brand: '0 0 0.5rem rgba(92,98,255,.45)',
+        soft: "0 6px 24px -6px rgba(0,0,0,.15)",
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
-}
+  plugins: [],
+};

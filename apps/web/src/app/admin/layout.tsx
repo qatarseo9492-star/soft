@@ -1,15 +1,13 @@
-export const dynamic="force-dynamic";
-export const revalidate=0;
-export const runtime="nodejs";
-import '../globals.css'
-import { Toaster } from 'react-hot-toast'
-import type { ReactNode } from 'react'
+// src/app/admin/layout.tsx
+import "@/app/globals.css";
+import { AdminShell } from "@/components/admin/AdminShell";
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
-  return (
-    <div className="min-h-dvh">
-      <Toaster position="top-right" toastOptions={{ style: { background: '#12121b', color: '#fff' } }} />
-      <div className="max-w-7xl mx-auto px-4 py-6">{children}</div>
-    </div>
-  )
+export const metadata = {
+  title: "Filespay · Admin",
+};
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return <AdminShell>{children}</AdminShell>;
 }
+
+export const dynamic = "force-dynamic";

@@ -1,174 +1,94 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { AdminToolbar, GradientHeader } from '@/components/admin/ui';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import Input from '@/components/ui/input'; // ✅ default import
-import { Badge } from '@/components/ui/badge';
-import { toastSuccess, toastError } from '@/lib/toast';
-
-type MeOk = {
-  ok: true;
-  user: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-    role: string;
-    avatarUrl?: string | null;
-  };
-};
-type MeErr = { ok: false; error: string };
-type MeResp = MeOk | MeErr;
+// src/app/admin/profile/page.tsx
+"use client";
+import { useEffect, useState } from "react";
 
 export default function ProfilePage() {
-  const [me, setMe] = useState<MeResp | null>(null);
-  const [msg, setMsg] = useState<string | null>(null); // optional inline notice
-  const [saving, setSaving] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
 
   useEffect(() => {
-    fetch(process.env.NEXT_PUBLIC_SITE_URL + '/web-api/auth/me', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then(setMe)
-      .catch(() => setMe({ ok: false, error: 'Failed to load user' }));
+    (async () => {
+      const r = await fetch("/web-api/admin/profile");
+      const j = await r.json();
+      if (r.ok && j.ok) setUser(j.user);
+      else setErr(j?.error || "Failed to load");
+    })();
   }, []);
 
-  async function onSaveProfile(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setMsg(null);
-    setSaving(true);
+  async function updateProfile(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault(); setErr(null); setOk(false);
     const fd = new FormData(e.currentTarget);
-    const payload = {
-      name: String(fd.get('name') || ''),
-      avatarUrl: String(fd.get('avatarUrl') || ''),
-    };
-    try {
-      const res = await fetch(process.env.NEXT_PUBLIC_SITE_URL + '/web-api/account/update', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const j = await res.json();
-      if (!j.ok) throw new Error(j.error || 'Update failed');
-
-      // optimistic refresh of name/avatar in UI
-      setMe((prev) =>
-        prev && prev.ok
-          ? { ok: true, user: { ...prev.user, name: payload.name, avatarUrl: payload.avatarUrl } }
-          : prev
-      );
-
-      setMsg('Profile updated'); // inline (optional)
-      toastSuccess('Profile updated'); // ✅ toast
-    } catch (err: any) {
-      const m = err?.message || 'Update failed';
-      setMsg(m);
-      toastError(m); // ✅ toast
-    } finally {
-      setSaving(false);
-    }
+    const payload = { name: fd.get("name"), email: fd.get("email"), avatarUrl: user?.avatarUrl || null };
+    const r = await fetch("/web-api/admin/profile", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+    const j = await r.json();
+    if (r.ok && j.ok) { setUser(j.user); setOk(true); }
+    else setErr(j?.error || "Update failed");
   }
 
-  async function onChangePassword(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setMsg(null);
-    setSaving(true);
+  async function changePass(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault(); setErr(null); setOk(false);
     const fd = new FormData(e.currentTarget);
-    const payload = {
-      currentPassword: String(fd.get('currentPassword') || ''),
-      newPassword: String(fd.get('newPassword') || ''),
-    };
-    try {
-      const res = await fetch(process.env.NEXT_PUBLIC_SITE_URL + '/web-api/account/password', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const j = await res.json();
-      if (!j.ok) throw new Error(j.error || 'Password change failed');
-
-      (e.currentTarget as HTMLFormElement).reset();
-      setMsg('Password changed');
-      toastSuccess('Password changed'); // ✅ toast
-    } catch (err: any) {
-      const m = err?.message || 'Password change failed';
-      setMsg(m);
-      toastError(m); // ✅ toast
-    } finally {
-      setSaving(false);
-    }
+    const payload = { current: fd.get("current"), next: fd.get("next") };
+    const r = await fetch("/web-api/admin/profile", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+    const j = await r.json();
+    if (r.ok && j.ok) setOk(true); else setErr(j?.error || "Password change failed");
   }
 
-  const u = me && me.ok ? me.user : undefined;
+  async function uploadAvatar(file: File) {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "avatars");
+    fd.append("webp", "1");
+    const r = await fetch("/web-api/admin/upload", { method: "POST", body: fd });
+    const j = await r.json();
+    if (r.ok && j.ok) setUser((u: any) => ({ ...u, avatarUrl: j.url }));
+  }
+
+  if (!user && !err) return <div>Loading…</div>;
+  if (err) return <div className="text-red-600">{err}</div>;
 
   return (
-    <div className="mx-auto max-w-3xl p-6 space-y-6">
-      <AdminToolbar homeHref="/" moreHref="/admin" />
-      <GradientHeader title="Your Profile" subtitle="Manage your name, avatar and password." />
-
-      {/* Inline status (toast also fires) */}
-      {msg && (
-        <div aria-live="polite">
-          <Badge variant="secondary">{msg}</Badge>
+    <div className="grid gap-6 sm:grid-cols-2">
+      <form onSubmit={updateProfile} className="rounded-2xl border p-4">
+        <h2 className="text-lg font-semibold mb-4">Profile</h2>
+        <div className="mb-4 flex items-center gap-4">
+          <img src={user?.avatarUrl || "/avatar.svg"} alt="" className="h-16 w-16 rounded-full border" />
+          <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && uploadAvatar(e.target.files[0])} />
         </div>
-      )}
-
-      <Card className="soft-card">
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          {/* Avatar preview */}
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-xl overflow-hidden ring-1 ring-white/10 bg-white/5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={u?.avatarUrl || '/avatar-placeholder.png'}
-                alt="Avatar"
-                className="h-full w-full object-cover"
-              />
-            </div>
-            <div className="text-sm text-white/70">
-              Signed in as <span className="font-mono text-white/90">{u?.email ?? '—'}</span>
-              <div className="mt-0.5">Role: {u?.role ?? 'USER'}</div>
-            </div>
+        <div className="grid gap-4">
+          <div>
+            <label className="block text-sm mb-1">Username</label>
+            <input disabled defaultValue={user?.username} className="w-full rounded-md border px-3 py-2 bg-muted/40" />
           </div>
+          <div>
+            <label className="block text-sm mb-1">Name</label>
+            <input name="name" defaultValue={user?.name ?? ""} className="w-full rounded-md border px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Email</label>
+            <input name="email" defaultValue={user?.email ?? ""} className="w-full rounded-md border px-3 py-2" />
+          </div>
+        </div>
+        <div className="mt-4">{ok && <div className="text-green-600 text-sm">Saved</div>}</div>
+        <button className="btn btn-primary rounded-xl mt-3">Save</button>
+      </form>
 
-          <form onSubmit={onSaveProfile} className="grid gap-3">
-            <label className="grid gap-1">
-              <span className="text-sm text-white/70">Name</span>
-              <Input name="name" defaultValue={u?.name ?? ''} placeholder="Your display name" />
-            </label>
-            <label className="grid gap-1">
-              <span className="text-sm text-white/70">Avatar URL</span>
-              <Input name="avatarUrl" defaultValue={u?.avatarUrl ?? ''} placeholder="https://…" />
-            </label>
-
-            <div>
-              <Button type="submit" variant="primary" disabled={saving}>
-                {saving ? 'Saving…' : 'Save Profile'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card className="soft-card">
-        <CardHeader>
-          <CardTitle>Change Password</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onChangePassword} className="grid md:grid-cols-2 gap-3">
-            <Input name="currentPassword" type="password" placeholder="Current password" />
-            <Input name="newPassword" type="password" placeholder="New password" />
-            <div className="md:col-span-2">
-              <Button type="submit" variant="outline" disabled={saving}>
-                {saving ? 'Updating…' : 'Update Password'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <form onSubmit={changePass} className="rounded-2xl border p-4">
+        <h2 className="text-lg font-semibold mb-4">Change password</h2>
+        <div className="grid gap-4">
+          <div>
+            <label className="block text-sm mb-1">Current password</label>
+            <input type="password" name="current" className="w-full rounded-md border px-3 py-2" required />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">New password</label>
+            <input type="password" name="next" className="w-full rounded-md border px-3 py-2" required />
+          </div>
+        </div>
+        <div className="mt-4">{ok && <div className="text-green-600 text-sm">Password updated</div>}</div>
+        <button className="rounded-xl border px-4 py-2">Update</button>
+      </form>
     </div>
   );
 }

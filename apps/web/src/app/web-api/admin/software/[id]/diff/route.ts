@@ -1,56 +1,43 @@
-export const dynamic="force-dynamic";
-export const revalidate=0;
-export const runtime="nodejs";
-import { NextResponse } from "next/server";
-import { getVersion, type VersionItem } from "@/app/web-api/_lib/software-store";
+// apps/web/src/app/web-api/admin/software/[id]/diff/route.ts
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-function ok(data: unknown, status = 200) {
-  return NextResponse.json(data, { status });
-}
+import { NextRequest, NextResponse } from "next/server";
+import { getVersion } from "@/app/web-api/_lib/software-store";
 
-type VersionDiff<T extends VersionItem> = {
-  [K in "version" | "os" | "license" | "changelog" | "releasedAt"]?: {
-    from: T[K] | null;
-    to: T[K] | null;
+// Flatten only the fields we care about for an easy diff
+function flatVersion(v: any) {
+  if (!v) return null;
+  return {
+    version: v.version ?? null,
+    os: v.os ?? v.osLabel ?? null,
+    license: v.license ?? null,
+    changelog: v.changelog ?? null,
+    releasedAt: v.releasedAt ? new Date(v.releasedAt).toISOString() : null,
   };
-};
-
-function diffVersions(a: VersionItem | null, b: VersionItem | null): VersionDiff<VersionItem> {
-  const out: VersionDiff<VersionItem> = {};
-  const fields: (keyof VersionItem)[] = ["version", "os", "license", "changelog", "releasedAt"];
-
-  for (const k of fields) {
-    const av = a ? (a[k] as any) : null;
-    const bv = b ? (b[k] as any) : null;
-    const same =
-      (av instanceof Date && bv instanceof Date ? av.getTime() === bv.getTime() : JSON.stringify(av) === JSON.stringify(bv));
-    if (!same) {
-      (out as any)[k] = { from: av ?? null, to: bv ?? null };
-    }
-  }
-  return out;
 }
 
-/**
- * GET /web-api/admin/software/[id]/diff?from=<versionId>&to=<versionId>
- * NOTE: [id] is not used server-side for the query (we diff by version IDs).
- */
-export async function GET(req: Request, _ctx: { params: { id: string } }) {
-  try {
-    const url = new URL(req.url);
-    const from = url.searchParams.get("from");
-    const to = url.searchParams.get("to");
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  // Optional query params: ?from=<versionId>&to=<versionId>
+  const u = new URL(req.url);
+  const fromId = u.searchParams.get("from");
+  const toId = u.searchParams.get("to");
 
-    if (!from || !to) return ok({ ok: false, error: 'Query params "from" and "to" are required' }, 400);
+  const fromV = fromId ? await getVersion(fromId) : null;
+  const toV = toId ? await getVersion(toId) : null;
 
-    const a = await getVersion(from);
-    const b = await getVersion(to);
+  const from = flatVersion(fromV);
+  const to = flatVersion(toV);
 
-    if (!a && !b) return ok({ ok: false, error: "Both versions not found" }, 404);
+  // Build naive field-by-field diff
+  const keys = ["version", "os", "license", "changelog", "releasedAt"] as const;
+  const diff: Record<string, { from: unknown; to: unknown }> = {};
 
-    const diff = diffVersions(a, b);
-    return ok({ ok: true, fromId: from, toId: to, diff });
-  } catch (e: any) {
-    return ok({ ok: false, error: e?.message || String(e) }, 500);
+  for (const k of keys) {
+    const f = (from as any)?.[k] ?? null;
+    const t = (to as any)?.[k] ?? null;
+    if (f !== t) diff[k] = { from: f, to: t };
   }
+
+  return NextResponse.json({ ok: true, diff, from, to, softwareId: params.id });
 }

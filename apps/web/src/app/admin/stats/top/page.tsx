@@ -1,45 +1,61 @@
-// apps/web/src/app/admin/stats/top/page.tsx
-import { apiGet } from "@/lib/api";
+// src/app/admin/stats/top/page.tsx
+export const dynamic = "force-dynamic";
 
+type TopItem = {
+  softwareId: string;
+  count: number;
+  software?: { id: string; name: string; slug: string } | null;
+};
 
-/** Server Component page (no "use client") */
-export default async function TopDownloadsPage() {
-  const data = await apiGet<{ ok: boolean; items: Array<{
-    softwareId: string;
-    count: number;
-    software: { id: string; name: string; slug: string; category?: { id: string; name: string; slug: string } } | null;
-  }> }>("/admin/stats/top?days=7&limit=10");
+type TopResp = { ok: boolean; items: TopItem[]; error?: string };
 
-  const items = data.ok ? data.items : [];
+async function getTop(): Promise<TopResp> {
+  const base = process.env.NEXT_PUBLIC_API_BASE || "";
+  const res = await fetch(`${base}/web-api/admin/stats/top`, {
+    // FIX: use only one caching model
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    return { ok: false, items: [], error: `HTTP ${res.status}` };
+  }
+  return res.json();
+}
+
+export default async function AdminTopPage() {
+  const data = await getTop();
 
   return (
-    <main className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Top Downloads (7 days)</h1>
-      <div className="overflow-x-auto">
-        <table className="min-w-[600px] border">
-          <thead>
-            <tr className="bg-neutral-100">
-              <th className="text-left p-2 border">#</th>
-              <th className="text-left p-2 border">Software</th>
-              <th className="text-left p-2 border">Category</th>
-              <th className="text-right p-2 border">Downloads</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((row, i) => (
-              <tr key={row.softwareId}>
-                <td className="p-2 border">{i + 1}</td>
-                <td className="p-2 border">{row.software?.name ?? "Unknown"}</td>
-                <td className="p-2 border">{row.software?.category?.name ?? "-"}</td>
-                <td className="p-2 border text-right">{row.count}</td>
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      <h1 className="mb-4 text-2xl font-semibold">Top Downloads (Admin)</h1>
+
+      {!data.ok ? (
+        <p className="text-sm text-red-500">Failed to load: {data.error ?? "unknown error"}</p>
+      ) : data.items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No data yet.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="min-w-full text-sm">
+            <thead className="bg-muted/50 text-left">
+              <tr>
+                <th className="px-3 py-2">#</th>
+                <th className="px-3 py-2">Software</th>
+                <th className="px-3 py-2">Slug</th>
+                <th className="px-3 py-2">Downloads</th>
               </tr>
-            ))}
-            {items.length === 0 && (
-              <tr><td colSpan={4} className="p-4 text-center text-neutral-500">No data</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </main>
+            </thead>
+            <tbody>
+              {data.items.map((it, idx) => (
+                <tr key={it.softwareId} className="border-t">
+                  <td className="px-3 py-2 tabular-nums">{idx + 1}</td>
+                  <td className="px-3 py-2">{it.software?.name ?? "—"}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{it.software?.slug ?? "—"}</td>
+                  <td className="px-3 py-2 font-medium tabular-nums">{it.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

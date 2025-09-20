@@ -1,57 +1,43 @@
-export const dynamic="force-dynamic";
-export const revalidate=0;
-export const runtime="nodejs";
-// apps/web/src/app/web-api/admin/tools/meta-jsonld/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import db from "@/lib/db";
 
-import { NextRequest, NextResponse } from 'next/server';
-import db from '../../../_lib/db'; // ✅ 3 levels up
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function bad(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const softwareId = searchParams.get('softwareId');
-  const versionId = searchParams.get('versionId');
-
-  if (!softwareId && !versionId) return bad('softwareId or versionId required');
+// POST body: { id?: string, slug?: string }
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  const where = body?.id ? { id: String(body.id) } : body?.slug ? { slug: String(body.slug) } : null;
+  if (!where) return NextResponse.json({ ok: false, error: "id or slug required" }, { status: 400 });
 
   const software = await db.software.findUnique({
-    where: softwareId ? { id: softwareId } : { id: 'NOPE' },
+    where,
     select: {
-      id: true,
-      slug: true,
-      name: true,
-      shortDesc: true,
-      websiteUrl: true,
-      publishedAt: true,
+      id: true, name: true, slug: true, shortDesc: true, longDesc: true,
+      vendor: true, version: true, featuredImage: true, seoTitle: true, seoDescription: true,
+      // relation is vendorRef (not vendor)
+      vendorRef: { select: { id: true, name: true, slug: true } },
     },
   });
 
-  let version: { id: string; version: string } | null = null;
-  if (versionId) {
-    version = await db.softwareVersion.findUnique({
-      where: { id: versionId },
-      select: { id: true, version: true },
-    });
-  }
+  if (!software) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
 
-  if (!software) return bad('Software not found', 404);
+  const urlBase = process.env.NEXT_PUBLIC_SITE_URL || "";
+  const pageUrl = `${urlBase}/software/${software.slug}`;
 
   const jsonld: any = {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: software.name,
-    url: software.websiteUrl || `https://filespay.org/s/${software.slug}`,
-    applicationCategory: 'SoftwareApplication',
-    description: software.shortDesc ?? undefined,
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: software.seoTitle || software.name,
+    description: software.seoDescription || software.shortDesc || undefined,
+    applicationCategory: "SoftwareApplication",
+    operatingSystem: undefined, // can be filled from `os` if needed
+    softwareVersion: software.version || undefined,
+    image: software.featuredImage ? `${urlBase}${software.featuredImage}` : undefined,
+    url: pageUrl,
+    author: software.vendorRef?.name || software.vendor || undefined,
+    publisher: software.vendorRef?.name || software.vendor || undefined,
   };
 
-  if (version) jsonld.softwareVersion = version.version;
-
-  return NextResponse.json(
-    { ok: true, jsonld },
-    { headers: { 'cache-control': 'no-store' } }
-  );
+  return NextResponse.json({ ok: true, jsonld });
 }

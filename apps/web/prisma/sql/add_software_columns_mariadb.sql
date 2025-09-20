@@ -1,0 +1,8 @@
+-- Add columns introduced by the new schema. Safe for MariaDB / MySQL.
+ALTER TABLE `Software`
+  ADD COLUMN IF NOT EXISTS `featuredImage` VARCHAR(191) NULL,
+  ADD COLUMN IF NOT EXISTS `seoTitle` VARCHAR(191) NULL,
+  ADD COLUMN IF NOT EXISTS `seoDescription` VARCHAR(191) NULL,
+  ADD COLUMN IF NOT EXISTS `vendor` VARCHAR(191) NULL,
+  ADD COLUMN IF NOT EXISTS `version` VARCHAR(64) NULL,
+  ADD COLUMN IF NOT EXISTS `fileSizeBytes` INT NULL;

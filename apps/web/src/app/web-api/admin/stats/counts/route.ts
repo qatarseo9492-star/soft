@@ -1,47 +1,31 @@
-export const dynamic="force-dynamic";
-export const revalidate=0;
-export const runtime="nodejs";
 // src/app/web-api/admin/stats/counts/route.ts
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import db from "../../../_lib/db";
 
+function startOfDay(d = new Date()) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+const subDays = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+};
 
 export async function GET() {
-  try {
-    const since7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const since1 = startOfDay();
+  const since7 = subDays(7);
+  const since30 = subDays(30);
 
-    const [
-      totalSoftware,
-      publishedSoftware,
-      vendors,
-      downloads7d,
-      commentsPending,
-      reviews,
-    ] = await Promise.all([
-      db.software.count(),
-      db.software.count({ where: { publishedAt: { not: null } } }),
-      db.vendor.count(),
-      db.downloadEvent.count({ where: { createdAt: { gte: since7 } } }),
-      db.comment.count({ where: { status: "PENDING" } }),
-      db.review.count(),
-    ]);
+  const [d1, d7, d30] = await Promise.all([
+    db.downloadLog.count({ where: { createdAt: { gte: since1 } } }),
+    db.downloadLog.count({ where: { createdAt: { gte: since7 } } }),
+    db.downloadLog.count({ where: { createdAt: { gte: since30 } } }),
+  ]);
 
-    return NextResponse.json({
-      ok: true,
-      counts: {
-        totalSoftware,
-        publishedSoftware,
-        vendors,
-        downloads7d,
-        commentsPending,
-        reviews,
-      },
-    });
-  } catch (err: any) {
-    console.error("[admin/stats/counts] error", err);
-    return NextResponse.json(
-      { ok: false, error: "counts-failed" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ ok: true, downloads: { day: d1, week: d7, month: d30 } });
 }

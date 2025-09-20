@@ -111,19 +111,27 @@ model Software {
   name String
 
   // Licensing & meta
-  license  String? @db.VarChar(64)
-  homepage String? @db.VarChar(191)
+  license   String? @db.VarChar(64)
+  homepage  String? @db.VarChar(191)
+  version   String?
+  vendor    String?                // Simple vendor text used by the admin UI
+  fileSizeBytes Int?               // Stored in bytes for accuracy
 
   // Descriptions
-  shortDesc String? @db.VarChar(191)
-  longDesc  String? @db.Text
+  shortDesc String?     @db.VarChar(191)
+  longDesc  String?     @db.LongText    // rich editor HTML content
+
+  // SEO
+  seoTitle        String?
+  seoDescription  String?
 
   // Platforms & tags
-  os Json? // ["Windows","macOS","Linux","Android","iOS"]
+  os Json? // ["windows","mac","linux","android","ios"]
 
   // Media
-  iconUrl String? @db.VarChar(191)
-  heroUrl String? @db.VarChar(191)
+  iconUrl      String? @db.VarChar(191)
+  heroUrl      String? @db.VarChar(191)
+  featuredImage String? @db.VarChar(191)
 
   // Aggregates
   ratingsAvg   Float @default(0)
@@ -143,16 +151,18 @@ model Software {
   updatedAt     DateTime  @updatedAt
 
   // Relations
-  vendorId     String?
-  vendor       Vendor?             @relation(fields: [vendorId], references: [id])
-  categories   SoftwareCategory[]
-  versions     Version[]
-  media        SoftwareMedia[]
-  faqs         FAQ[]
-  requirements SystemRequirement[]
-  comments     Comment[]
-  tags         Tag[]               @relation("SoftwareTags")
-  reviews      Review[]
+  vendorId   String?
+  vendorRef  Vendor?             @relation(fields: [vendorId], references: [id]) // renamed to avoid clashing with `vendor` text field
+  categories SoftwareCategory[]
+  versions   Version[]
+  media      SoftwareMedia[]
+  comments   Comment[]
+  tags       Tag[]               @relation("SoftwareTags")
+  reviews    Review[]
+
+  // JSON blobs (simpler than extra tables for admin UI)
+  faqs               String?  @db.LongText
+  systemRequirements String?  @db.LongText
 
   // Logging & counters
   logs       DownloadLog[]
@@ -179,7 +189,7 @@ model Version {
 
   builds Build[]
 
-  // 🔧 back-relation to DownloadLog.version (fixes your error)
+  // back-relation to DownloadLog.version
   logs DownloadLog[] @relation("VersionToDownloadLog")
 
   @@unique([softwareId, version])
@@ -237,6 +247,7 @@ model SoftwareMedia {
   alt        String?
   order      Int       @default(0)
   createdAt  DateTime  @default(now())
+  meta       Json?     // flexible per-asset metadata (width/height, focal, credit, etc.)
 
   @@index([softwareId, type, order])
 }
@@ -277,30 +288,7 @@ model Review {
 }
 
 // =====================================
-// System requirements & FAQs
-// =====================================
-model SystemRequirement {
-  id          String   @id @default(cuid())
-  softwareId  String
-  software    Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
-  os          String
-  minimum     Json
-  recommended Json?
-}
-
-model FAQ {
-  id         String   @id @default(cuid())
-  softwareId String
-  software   Software @relation(fields: [softwareId], references: [id], onDelete: Cascade)
-  question   String
-  answer     String   @db.Text
-  order      Int      @default(0)
-
-  @@index([softwareId, order])
-}
-
-// =====================================
-// Users & roles
+// Users & roles (site users)
 // =====================================
 model User {
   id           String    @id @default(cuid())
@@ -316,6 +304,21 @@ model User {
 
   comments Comment[]
   reviews  Review[]
+}
+
+// =====================================
+// Admin users (for dashboard/profile)
+// =====================================
+model AdminUser {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  name         String?
+  email        String?  @unique
+  avatarUrl    String?
+  role         String   @default("admin")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // =====================================

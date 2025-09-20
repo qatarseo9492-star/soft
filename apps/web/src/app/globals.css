@@ -1,31 +1,111 @@
+/* src/app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Base tokens (CSS vars optional; we stick to utility classes) */
-html, body {
-  @apply bg-[#0b0d16] text-white;
+/* ──────────────────────────────────────────────────────────────
+   THEME TOKENS (light by default)
+   ────────────────────────────────────────────────────────────── */
+:root {
+  /* surfaces & text */
+  --bg: #ffffff;
+  --fg: #0a0a0a;
+  --card: #ffffff;
+  --muted: #f6f7f9;
+  --border: rgba(0, 0, 0, 0.08);
+
+  /* brand */
+  --brand-50:  #f0f7ff;
+  --brand-100: #e0efff;
+  --brand-200: #bdddff;
+  --brand-300: #8ec5ff;
+  --brand-400: #5ea8ff;
+  --brand-500: #2b86ff;
+  --brand-600: #1569e6;
+  --brand-700: #0f52b3;
+  --brand-800: #0c3c80;
+  --brand-900: #092a59;
+
+  --link: var(--brand-700);
+
+  /* accent helpers used in components */
+  --accent: var(--muted);
+  --accent-foreground: var(--fg);
+
+  color-scheme: light;
 }
 
-/* Panels, cards, and sidebar/item backgrounds */
-:root {
+/* DARK THEME (toggle by adding class="dark" on <html>) */
+html.dark {
+  --bg: #0b0d16;
+  --fg: #ffffff;
   --card: #0e1220;
   --muted: #101426;
-  --border: rgba(255,255,255,.08);
+  --border: rgba(255, 255, 255, 0.08);
+  --link: #8ec5ff;
+
+  --accent: #141a2e;            /* slightly lighter than bg for hover states */
+  --accent-foreground: #e5e7eb;
+
+  color-scheme: dark;
 }
 
+/* ──────────────────────────────────────────────────────────────
+   Base resets & helpers
+   ────────────────────────────────────────────────────────────── */
+@layer base {
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    @apply antialiased;
+  }
+
+  /* Make borders use our token by default */
+  * {
+    border-color: var(--border);
+  }
+
+  ::selection {
+    background: var(--brand-200);
+    color: #0b1220;
+  }
+}
+
+/* Utility classes that map to our tokens (used in TSX) */
+.bg-background { background-color: var(--bg); }
+.text-foreground { color: var(--fg); }
+.bg-accent { background-color: var(--accent); }
+.text-accent-foreground { color: var(--accent-foreground); }
+.border-subtle { border-color: var(--border); }
+
+/* Layout helpers */
+.container-max { @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8; }
+
+/* Cards / panels */
 .card {
   background: var(--card);
   border: 1px solid var(--border);
+  @apply rounded-2xl shadow-[0_6px_24px_-6px_rgba(0,0,0,0.15)];
 }
+
+/* Buttons */
+.btn { @apply inline-flex items-center justify-center rounded-xl border px-4 py-2 font-medium transition; }
+.btn-primary { background: var(--brand-600); border-color: var(--brand-600); color: #fff; }
+.btn-primary:hover { background: var(--brand-700); }
+.btn-ghost { @apply border-transparent hover:bg-neutral-100; }
+html.dark .btn-ghost { @apply hover:bg-white/10; }
+.btn-muted { @apply bg-white/5 hover:bg-white/10 text-white; } /* from your old file */
+
+/* Badges / pills */
+.badge { @apply inline-flex items-center rounded-full px-3 py-1 text-xs; background: var(--muted); color: #4b5563; }
+html.dark .badge { @apply text-neutral-300; }
+
+/* Links */
+a { color: var(--link); }
+a:hover { text-decoration: underline; }
+
+/* Image smoothing (nice for icons/logos) */
+img { image-rendering: -webkit-optimize-contrast; }
 
 /* Keep toasts above everything */
 [data-sonner-toaster] { z-index: 9999 !important; }
-
-/* Make secondary/ghost buttons readable on dark */
-.btn-muted {
-  @apply bg-white/5 hover:bg-white/10 text-white;
-}
-
-/* Simple link underline on hover for contrast */
-a { @apply hover:underline; }

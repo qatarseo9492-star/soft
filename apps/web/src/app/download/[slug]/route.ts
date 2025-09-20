@@ -1,33 +1,45 @@
-import { NextRequest, NextResponse } from "next/server";
+// apps/web/src/app/download/[slug]/route.ts
+import { chooseBuildUrlBySlug, logDownloadByIds } from "../../web-api/_lib/software-store";
 
-export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
-  const slug = params.slug;
-  const id = req.nextUrl.searchParams.get("id");
+export const dynamic = "force-dynamic";
 
-  // 1) fetch detail via proxy
-  const r = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || "/web-api"}/software/${encodeURIComponent(slug)}`, { cache: "no-store" });
-  if (!r.ok) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
-  const json = await r.json();
-  const data = json.data ?? json.software ?? json;
+export async function GET(req: Request, ctx: { params: { slug: string } }) {
+  try {
+    const u = new URL(req.url);
+    const buildId = u.searchParams.get("id");
 
-  // 2) pick best URL
-  const versions = data?.software?.versions ?? data?.versions ?? [];
-  const allBuilds = versions.flatMap((v: any) => v.builds ?? []);
-  const wanted = id ? allBuilds.find((b: any) => b.id === id) : allBuilds[0];
-  const url = wanted?.downloadUrl ?? null;
-  const buildId = wanted?.id ?? null;
-  if (!url) return NextResponse.json({ ok: false, error: "No downloadable build" }, { status: 404 });
+    // FIX: pass an options object, not a string
+    const chosen = await chooseBuildUrlBySlug(
+      ctx.params.slug,
+      buildId ? { id: buildId } : undefined
+    );
 
-  // 3) fire-and-forget log to API direct (faster than double-proxy)
-  const api = process.env.API_BASE_SERVER;
-  if (api) {
-    fetch(`${api}/v1/software/${encodeURIComponent(slug)}/downloads`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ buildId }),
-      keepalive: true,
+    if (!chosen?.url) {
+      return new Response("No download available", { status: 404 });
+    }
+
+    // Best-effort log (don’t block redirect)
+    const ip =
+      (req.headers.get("x-forwarded-for") ||
+        req.headers.get("x-real-ip") ||
+        "")
+        .split(",")[0]
+        ?.trim() || null;
+    const ua = req.headers.get("user-agent") || null;
+    const referer = req.headers.get("referer") || null;
+
+    // fire-and-forget
+    logDownloadByIds({
+      softwareId: chosen.softwareId,
+      versionId: chosen.versionId,
+      buildId: chosen.buildId,
+      ip,
+      ua,
+      referer,
     }).catch(() => {});
-  }
 
-  return NextResponse.redirect(url, 307);
+    return Response.redirect(chosen.url, 302);
+  } catch {
+    return new Response("Internal error", { status: 500 });
+  }
 }

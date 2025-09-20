@@ -1,26 +1,26 @@
-// apps/web/src/components/home/Filters.tsx
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 
-const osOpts = ["Windows","macOS","Linux","Android","iOS"];
-const licenseOpts = ["Free","Pro","GPL"];
+const osOpts = ["Windows", "macOS", "Linux", "Android", "iOS"];
+const licenseOpts = ["Free", "Pro", "GPL"];
 const sortOpts = [
   { v: "updated", label: "Recently Updated" },
   { v: "new", label: "Newly Added" },
-  { v: "downloads", label: "Most Downloaded" }, // ✅ enabled
 ];
 
 export default function Filters() {
   const sp = useSearchParams();
   const r = useRouter();
 
-  const [q, setQ] = useState(sp.get("q") ?? "");
-  const [os, setOs] = useState(sp.get("os") ?? "");
-  const [lic, setLic] = useState(sp.get("license") ?? "");
-  const [sort, setSort] = useState(sp.get("sort") ?? "updated");
+  const get = (k: string) => sp?.get(k) ?? "";
 
-  useEffect(() => setQ(sp.get("q") ?? ""), [sp]);
+  const [q, setQ] = useState(get("q"));
+  const [os, setOs] = useState(get("os"));
+  const [lic, setLic] = useState(get("license"));
+  const [sort, setSort] = useState(get("sort") || "updated");
+
+  useEffect(() => setQ(get("q")), [sp]); // update when URL changes
 
   const apply = () => {
     const p = new URLSearchParams();
@@ -42,14 +42,26 @@ export default function Filters() {
         />
         <select value={os} onChange={(e) => setOs(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2">
           <option value="">All OS</option>
-          {osOpts.map((o) => <option key={o} value={o}>{o}</option>)}
+          {osOpts.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
         </select>
         <select value={lic} onChange={(e) => setLic(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2">
           <option value="">All Licenses</option>
-          {licenseOpts.map((o) => <option key={o} value={o}>{o}</option>)}
+          {licenseOpts.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2">
-          {sortOpts.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
+          {sortOpts.map((s) => (
+            <option key={s.v} value={s.v}>
+              {s.label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="mt-3 flex justify-end">

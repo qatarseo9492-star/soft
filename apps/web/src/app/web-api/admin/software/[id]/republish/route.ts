@@ -1,18 +1,32 @@
-export const dynamic="force-dynamic";
-export const revalidate=0;
-export const runtime="nodejs";
-// src/app/web-api/admin/software/[id]/republish/route.ts
+// apps/web/src/app/web-api/admin/software/[id]/republish/route.ts
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import db from "@/lib/db";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
   try {
-    await db.software.update({
+    // Touch updatedAt; if not published yet, set publishedAt too
+    const current = await db.software.findUnique({
       where: { id: params.id },
-      data: { updatedAt: new Date() },
+      select: { publishedAt: true },
     });
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Republish failed" }, { status: 500 });
+
+    const data: any = { updatedAt: new Date() };
+    if (!current?.publishedAt) data.publishedAt = new Date();
+
+    const software = await db.software.update({
+      where: { id: params.id },
+      data,
+      select: { id: true, slug: true, publishedAt: true, updatedAt: true },
+    });
+
+    return NextResponse.json({ ok: true, software });
+  } catch (err: any) {
+    return NextResponse.json(
+      { ok: false, error: err?.message ?? "Republish failed" },
+      { status: 500 }
+    );
   }
 }

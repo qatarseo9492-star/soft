@@ -1,24 +1,34 @@
-export const revalidate = 0;
+import db from "@/app/web-api/_lib/db";
 
+export const dynamic = "force-dynamic";
+
+// GET /web-api/admin/settings  -> return all settings as { key, text, json }
 export async function GET() {
-  const base = process.env.API_BASE_SERVER;
-  if (!base) return Response.json({ ok:false, error:"API_BASE_SERVER not set" }, { status: 500 });
-  const r = await fetch(`${base}/v1/admin/settings`, { cache: "no-store" });
-  const b = await r.json().catch(() => ({}));
-  return Response.json(b, { status: r.status });
+  const rows = await db.setting.findMany({ orderBy: { key: "asc" } });
+  return Response.json({
+    ok: true,
+    items: rows.map(r => ({ key: r.key, text: r.text ?? null, json: r.json ?? null, updatedAt: r.updatedAt })),
+  });
 }
 
-export async function POST(req: Request) {
-  const base = process.env.API_BASE_SERVER;
-  if (!base) return Response.json({ ok:false, error:"API_BASE_SERVER not set" }, { status: 500 });
+// PUT /web-api/admin/settings  -> upsert many at once
+// Body: { set: Array<{ key: string, text?: string|null, json?: any }> }
+export async function PUT(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const key = body?.key as string;
-  if (!key) return Response.json({ ok:false, error:"key required" }, { status: 400 });
-  const r = await fetch(`${base}/v1/admin/settings/${encodeURIComponent(key)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ json: body?.json ?? null, text: body?.text ?? null }),
-  });
-  const b = await r.json().catch(() => ({}));
-  return Response.json(b, { status: r.status });
+  const set: Array<{ key: string; text?: string | null; json?: any }> = body?.set ?? [];
+  if (!Array.isArray(set) || set.length === 0) {
+    return new Response("Bad Request", { status: 400 });
+  }
+
+  for (const row of set) {
+    await db.setting.upsert({
+      where: { key: row.key },
+      create: { key: row.key, text: row.text ?? null, json: row.json ?? null },
+      update: {
+        text: row.hasOwnProperty("text") ? (row.text ?? null) : undefined,
+        json: row.hasOwnProperty("json") ? (row.json ?? null) : undefined,
+      },
+    });
+  }
+  return Response.json({ ok: true });
 }

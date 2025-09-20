@@ -1,46 +1,48 @@
-export const dynamic="force-dynamic";
-export const revalidate=0;
-export const runtime="nodejs";
-// apps/web/src/app/web-api/admin/tools/search/sync/route.ts
+// src/app/web-api/admin/tools/search/sync/route.ts
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-import { NextRequest, NextResponse } from 'next/server';
-import db from '../../../../_lib/db';
+import { NextResponse } from "next/server";
+import db from "@/lib/db"; // ⬅️ use path alias so TS can resolve it
 
 export async function POST() {
-  // Pull only published software (publishedAt not null)
-  const list = await db.software.findMany({
-    where: { NOT: { publishedAt: null } },
+  // Pull minimal fields for indexing
+  const rows = await db.software.findMany({
     select: {
       id: true,
-      slug: true,
       name: true,
+      slug: true,
       shortDesc: true,
-      categoryId: true,
-      publishedAt: true,
+      longDesc: true,
+      updatedAt: true,
+      categories: { select: { category: { select: { id: true, name: true, slug: true } } } },
       _count: { select: { versions: true } },
       versions: {
-        orderBy: { createdAt: 'desc' },
+        orderBy: { releasedAt: "desc" },
         take: 1,
-        select: { id: true, version: true, createdAt: true },
+        select: { id: true, version: true, releasedAt: true },
       },
     },
-    take: 1000,
+    orderBy: { updatedAt: "desc" },
   });
 
-  const docs = list.map((s) => {
+  const docs = rows.map((s) => {
     const latest = s.versions[0] || null;
+    const primaryCat = s.categories[0]?.category || null;
     return {
       id: s.id,
       slug: s.slug,
       name: s.name,
-      shortDesc: s.shortDesc ?? '',
-      categoryId: s.categoryId,
-      publishedAt: s.publishedAt,
+      shortDesc: s.shortDesc,
+      longDesc: s.longDesc,
+      updatedAt: s.updatedAt,
+      category: primaryCat,
       versionsCount: s._count.versions,
-      latestVersion: latest ? { id: latest.id, version: latest.version, createdAt: latest.createdAt } : null,
+      latestVersion: latest?.version || null,
+      latestReleasedAt: latest?.releasedAt || null,
     };
   });
 
-  // Your Meilisearch sync would go here.
-  return NextResponse.json({ ok: true, count: docs.length, docs }, { headers: { 'cache-control': 'no-store' } });
+  // TODO: push `docs` to Meilisearch if enabled
+  return NextResponse.json({ ok: true, indexed: docs.length });
 }
