@@ -1,32 +1,39 @@
-import db from "@/app/web-api/_lib/db";
+// DB-FREE, BUILD-SAFE SITEMAP
 import type { MetadataRoute } from "next";
 
+const BASE =
+  (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"))
+    .replace(/\/$/, "");
+
+export const runtime = "nodejs"; // fine for sitemap
+export const dynamic = "force-static"; // allow prerender, but don't error if fetch fails
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = process.env.NEXT_PUBLIC_SITE_URL || "https://filespay.org";
-  const items: MetadataRoute.Sitemap = [
-    { url: `${base}/`, changeFrequency: "daily", priority: 1.0, lastModified: new Date() },
-    { url: `${base}/categories`, changeFrequency: "weekly", priority: 0.7, lastModified: new Date() },
+  // always include a few static routes
+  const baseRoutes: MetadataRoute.Sitemap = [
+    { url: `${BASE}/`, lastModified: new Date() },
+    { url: `${BASE}/software`, lastModified: new Date() },
   ];
 
-  const cats = await db.category.findMany({ select: { slug: true, updatedAt: true } });
-  for (const c of cats) {
-    items.push({
-      url: `${base}/category/${encodeURIComponent(c.slug)}`,
-      changeFrequency: "weekly",
-      priority: 0.7,
-      lastModified: c.updatedAt ?? new Date(),
+  // try to get slugs from the public API; if it fails, just return baseRoutes
+  try {
+    const res = await fetch(`${BASE}/web-api/software?limit=1000`, {
+      // if this 404s or is unavailable at build time, we’ll catch and return baseRoutes
+      next: { revalidate: 3600 },
     });
-  }
+    if (!res.ok) return baseRoutes;
 
-  const sw = await db.software.findMany({ select: { slug: true, updatedAt: true, publishedAt: true }, where: { status: "published" } });
-  for (const s of sw) {
-    items.push({
-      url: `${base}/software/${encodeURIComponent(s.slug)}`,
-      changeFrequency: "daily",
-      priority: 0.9,
-      lastModified: s.updatedAt ?? s.publishedAt ?? new Date(),
-    });
-  }
+    const data = (await res.json()) as { items?: Array<{ slug: string; updatedAt?: string }> };
+    const items = Array.isArray(data.items) ? data.items : [];
 
-  return items;
+    const dyn: MetadataRoute.Sitemap = items.map((s) => ({
+      url: `${BASE}/software/${s.slug}`,
+      lastModified: s.updatedAt ? new Date(s.updatedAt) : new Date(),
+    }));
+
+    return [...baseRoutes, ...dyn];
+  } catch {
+    return baseRoutes;
+  }
 }
