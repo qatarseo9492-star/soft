@@ -1,9 +1,9 @@
-// src/lib/api/index.ts
-
 /**
  * Fetch helpers that always use an ABSOLUTE URL so they work
  * in Server Components, on Vercel, and during prerendering.
  */
+
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 const ORIGIN =
   (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
@@ -44,9 +44,55 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.text()) as unknown as T;
 }
 
-export async function apiGet<T = any>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(apiUrl(path), { cache: "no-store", ...init });
+/** ---------------------------
+ *  Backward-compatible JSON fetcher
+ *  Supports:
+ *   - apiJSON(url, { method, headers, body })
+ *   - apiJSON(url, "POST" | "PUT" | "PATCH" | "DELETE", payload)
+ * --------------------------- */
+export async function apiJSON<T = any>(path: string, init?: RequestInit): Promise<T>;
+export async function apiJSON<T = any>(
+  path: string,
+  method: HttpMethod,
+  payload?: unknown
+): Promise<T>;
+export async function apiJSON<T = any>(
+  path: string,
+  initOrMethod?: RequestInit | HttpMethod,
+  maybeBody?: unknown
+): Promise<T> {
+  const url = apiUrl(path);
+  let init: RequestInit = {};
+
+  if (typeof initOrMethod === "string") {
+    // legacy 3-arg style
+    init.method = initOrMethod;
+    if (maybeBody !== undefined) {
+      if (maybeBody instanceof FormData) {
+        init.body = maybeBody;
+      } else {
+        init.body = JSON.stringify(maybeBody);
+        init.headers = { "Content-Type": "application/json" };
+      }
+    }
+  } else if (initOrMethod) {
+    init = { ...initOrMethod };
+    if (init.body && !(init.body instanceof FormData)) {
+      init.headers = { "Content-Type": "application/json", ...(init.headers || {}) };
+      if (typeof init.body !== "string") {
+        init.body = JSON.stringify(init.body);
+      }
+    }
+  }
+
+  if (init.cache === undefined) init.cache = "no-store";
+  const res = await fetch(url, init);
   return handle<T>(res);
+}
+
+/** Convenience helpers built on apiJSON */
+export async function apiGet<T = any>(path: string, init?: RequestInit): Promise<T> {
+  return apiJSON<T>(path, { ...(init || {}), method: "GET" });
 }
 
 export async function apiPost<T = any>(
@@ -54,14 +100,7 @@ export async function apiPost<T = any>(
   data?: unknown,
   init?: RequestInit
 ): Promise<T> {
-  const res = await fetch(apiUrl(path), {
-    method: "POST",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
-    body: data === undefined ? undefined : JSON.stringify(data),
-    ...init,
-  });
-  return handle<T>(res);
+  return apiJSON<T>(path, { ...(init || {}), method: "POST", body: data });
 }
 
 export async function apiPut<T = any>(
@@ -69,19 +108,24 @@ export async function apiPut<T = any>(
   data?: unknown,
   init?: RequestInit
 ): Promise<T> {
-  const res = await fetch(apiUrl(path), {
-    method: "PUT",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
-    body: data === undefined ? undefined : JSON.stringify(data),
-    ...init,
-  });
-  return handle<T>(res);
+  return apiJSON<T>(path, { ...(init || {}), method: "PUT", body: data });
 }
 
 export async function apiDelete<T = any>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(apiUrl(path), { method: "DELETE", cache: "no-store", ...init });
-  return handle<T>(res);
+  return apiJSON<T>(path, { ...(init || {}), method: "DELETE" });
+}
+
+/** Multipart upload helper (auto-sends FormData) */
+export async function apiUpload<T = any>(
+  path: string,
+  form: FormData,
+  init?: RequestInit
+): Promise<T> {
+  // Let the browser set multipart boundaries; do NOT set content-type here.
+  return apiJSON<T>(path, { ...(init || {}), method: "POST", body: form });
 }
 
 export const __debug = { ORIGIN, PUBLIC_BASE };
+
+/** Re-export for places importing slugify from "@/lib/api" */
+export { slugify } from "@/lib/slug";
